@@ -1,0 +1,16 @@
+[Unit]
+Description=Remnawave Xray Traffic & User Monitor (TypeScript)
+After=network.target docker.service
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/root/apps/xray-monitor
+ExecStart=/root/apps/xray-monitor/node_modules/.bin/tsx src/index.ts
+Restart=always
+RestartSec=5
+LimitNOFILE=65535
+MemoryMax=150M
+
+[Install]
+WantedBy=multi-user.target

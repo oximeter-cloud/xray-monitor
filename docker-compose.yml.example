@@ -1,0 +1,15 @@
+services:
+  xray-monitor:
+    image: ghcr.io/oximeter-cloud/xray-monitor:latest
+    container_name: xray-monitor
+    restart: always
+    ports:
+      - "127.0.0.1:9922:9922"
+    environment:
+      - PORT=9922
+      - DATA_DIR=/app/data
+      - REMNAWAVE_API_URL=https://panel.example.com/api
+      - REMNAWAVE_API_TOKEN=your_remnawave_bearer_token
+      - INGEST_SECRET=your_secure_ingest_secret
+    volumes:
+      - ./data:/app/data

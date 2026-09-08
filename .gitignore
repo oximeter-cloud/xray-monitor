@@ -1,0 +1,22 @@
+# Dependencies
+node_modules/
+
+# Environment configurations (NEVER commit secrets)
+.env
+.env.local
+.env.*.local
+
+# Persistent SQLite database and logs
+data/
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+*.log
+
+# Build outputs
+dist/
+
+# OS artifacts
+.DS_Store
+Thumbs.db

@@ -1,0 +1,1809 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Remnawave Traffic & User Monitor</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: { 500: '#6366f1', 600: '#4f46e5', 700: '#4338ca' },
+            dark: { 800: '#18181b', 900: '#09090b', 950: '#030712' }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body { background-color: #09090b; color: #f4f4f5; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
+    .custom-scrollbar::-webkit-scrollbar-track { background: #18181b; }
+    .custom-scrollbar::-webkit-scrollbar-thumb { background: #3f3f46; border-radius: 3px; }
+    .badge-google { background: rgba(59, 130, 246, 0.15); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.3); }
+    .badge-meta { background: rgba(236, 72, 153, 0.15); color: #f472b6; border: 1px solid rgba(236, 72, 153, 0.3); }
+    .badge-telegram { background: rgba(14, 165, 233, 0.15); color: #38bdf8; border: 1px solid rgba(14, 165, 233, 0.3); }
+    .badge-apple { background: rgba(161, 161, 170, 0.15); color: #d4d4d8; border: 1px solid rgba(161, 161, 170, 0.3); }
+    .badge-twitter { background: rgba(20, 184, 166, 0.15); color: #2dd4bf; border: 1px solid rgba(20, 184, 166, 0.3); }
+    .badge-general { background: rgba(113, 113, 122, 0.15); color: #a1a1aa; border: 1px solid rgba(113, 113, 122, 0.3); }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col antialiased selection:bg-brand-500 selection:text-white">
+
+  <!-- Navigation Bar -->
+  <header class="border-b border-zinc-800 bg-zinc-950/80 backdrop-blur sticky top-0 z-30 px-6 py-3.5 flex flex-wrap items-center justify-between gap-4">
+    <div class="flex items-center gap-3">
+      <div class="h-8 w-8 rounded-lg bg-gradient-to-tr from-brand-600 to-indigo-400 flex items-center justify-center font-bold text-white shadow-lg shadow-brand-500/20">
+        R
+      </div>
+      <div>
+        <h1 class="text-base font-semibold tracking-tight text-white flex items-center gap-2">
+          Remnawave Observability
+          <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">Live</span>
+        </h1>
+        <p class="text-xs text-zinc-400">Real-time user destinations & inbound analytics</p>
+      </div>
+    </div>
+
+    <!-- Global Controls -->
+    <div class="flex items-center flex-wrap gap-2.5">
+      <!-- Tehran Time Badge -->
+      <div class="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-zinc-800 bg-zinc-900 text-xs text-zinc-300 font-mono">
+        <svg class="w-3.5 h-3.5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        <span id="tehranClock" class="text-zinc-300">Tehran: --:--:--</span>
+      </div>
+
+      <!-- Time Range Selector -->
+      <div class="flex rounded-lg bg-zinc-900 p-0.5 border border-zinc-800 text-xs">
+        <button onclick="setTimeRange(1)" class="time-btn px-2.5 py-1 rounded-md text-zinc-400 hover:text-white transition" data-hours="1">1h</button>
+        <button onclick="setTimeRange(6)" class="time-btn px-2.5 py-1 rounded-md text-zinc-400 hover:text-white transition" data-hours="6">6h</button>
+        <button onclick="setTimeRange(24)" class="time-btn px-2.5 py-1 rounded-md bg-zinc-800 text-white font-medium" data-hours="24">24h</button>
+        <button onclick="setTimeRange(168)" class="time-btn px-2.5 py-1 rounded-md text-zinc-400 hover:text-white transition" data-hours="168">7d</button>
+      </div>
+
+      <!-- User Dropdown Filter -->
+      <select id="userFilter" onchange="onFilterChange()" class="bg-zinc-900 border border-zinc-800 text-xs text-zinc-300 rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-brand-500">
+        <option value="">All Users</option>
+      </select>
+
+      <!-- Refresh / Live Button -->
+      <button id="liveToggleBtn" onclick="toggleAutoRefresh()" class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-zinc-800 bg-zinc-900 text-xs text-zinc-300 hover:bg-zinc-800 transition">
+        <span class="h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>
+        <span id="liveBtnText">Auto-Refresh On</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- Main Container -->
+  <main class="flex-1 p-6 max-w-7xl w-full mx-auto space-y-6">
+
+    <!-- KPI Summary Cards -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+      <div class="bg-zinc-900/60 border border-zinc-800/80 rounded-xl p-4 flex flex-col justify-between">
+        <div class="flex items-center justify-between text-zinc-400 text-xs font-medium">
+          <span>Total Requests</span>
+          <svg class="w-4 h-4 text-zinc-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+        </div>
+        <div class="mt-2 flex items-baseline gap-2">
+          <span id="statTotalRequests" class="text-2xl font-bold text-white tracking-tight">-</span>
+          <span class="text-xs text-zinc-500">conns</span>
+        </div>
+      </div>
+
+      <div class="bg-zinc-900/60 border border-zinc-800/80 rounded-xl p-4 flex flex-col justify-between">
+        <div class="flex items-center justify-between text-zinc-400 text-xs font-medium">
+          <span>Egress Transfer (Remnawave)</span>
+          <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10"/></svg>
+        </div>
+        <div class="mt-2 flex flex-col">
+          <span id="statTotalTraffic" class="text-2xl font-bold text-emerald-400 tracking-tight">-</span>
+          <span id="statTrafficSub" class="text-[11px] font-mono text-zinc-400 mt-0.5">Remnawave Egress (DE & FI)</span>
+        </div>
+      </div>
+
+      <div class="bg-zinc-900/60 border border-zinc-800/80 rounded-xl p-4 flex flex-col justify-between">
+        <div class="flex items-center justify-between text-zinc-400 text-xs font-medium">
+          <span>Active Users</span>
+          <svg class="w-4 h-4 text-zinc-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+        </div>
+        <div class="mt-2 flex items-baseline gap-2">
+          <span id="statActiveUsers" class="text-2xl font-bold text-white tracking-tight">-</span>
+          <span class="text-xs text-zinc-500">online in range</span>
+        </div>
+      </div>
+
+      <div class="bg-zinc-900/60 border border-zinc-800/80 rounded-xl p-4 flex flex-col justify-between">
+        <div class="flex items-center justify-between text-zinc-400 text-xs font-medium">
+          <span>Top Visited Destination</span>
+          <svg class="w-4 h-4 text-zinc-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"/></svg>
+        </div>
+        <div class="mt-2 flex items-baseline gap-2">
+          <span id="statTopDomain" class="text-xl font-bold text-indigo-400 truncate tracking-tight">-</span>
+          <span id="statTopDomainHits" class="text-xs text-zinc-500"></span>
+        </div>
+      </div>
+
+      <div class="bg-zinc-900/60 border border-zinc-800/80 rounded-xl p-4 flex flex-col justify-between">
+        <div class="flex items-center justify-between text-zinc-400 text-xs font-medium">
+          <span>Dominant Inbound</span>
+          <svg class="w-4 h-4 text-zinc-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+        </div>
+        <div class="mt-2 flex items-baseline gap-2">
+          <span id="statTopInbound" class="text-xl font-bold text-emerald-400 truncate tracking-tight">-</span>
+          <span id="statTopInboundHits" class="text-xs text-zinc-500"></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Navigation Tabs -->
+    <div class="flex border-b border-zinc-800 gap-6 text-sm overflow-x-auto custom-scrollbar whitespace-nowrap">
+      <button onclick="switchTab('destinations')" id="tab-destinations" class="tab-btn pb-3 text-white border-b-2 border-brand-500 font-medium">Traffic Overview</button>
+      <button onclick="switchTab('users')" id="tab-users" class="tab-btn pb-3 text-zinc-400 hover:text-zinc-200 border-b-2 border-transparent transition">User Activity</button>
+      <button onclick="switchTab('live')" id="tab-live" class="tab-btn pb-3 text-zinc-400 hover:text-zinc-200 border-b-2 border-transparent transition flex items-center gap-2">
+        Live Stream
+        <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+      </button>
+      <button onclick="switchTab('inbounds')" id="tab-inbounds" class="tab-btn pb-3 text-zinc-400 hover:text-zinc-200 border-b-2 border-transparent transition">Inbound Gateways</button>
+      <button onclick="switchTab('sessions')" id="tab-sessions" class="tab-btn pb-3 text-zinc-400 hover:text-zinc-200 border-b-2 border-transparent transition">Nodes & Topology</button>
+      <button onclick="switchTab('bandwidth')" id="tab-bandwidth" class="tab-btn pb-3 text-zinc-400 hover:text-zinc-200 border-b-2 border-transparent transition">Bandwidth & Trends</button>
+      <button onclick="switchTab('hwid')" id="tab-hwid" class="tab-btn pb-3 text-zinc-400 hover:text-zinc-200 border-b-2 border-transparent transition">HWID Devices</button>
+      <button onclick="switchTab('srh')" id="tab-srh" class="tab-btn pb-3 text-zinc-400 hover:text-zinc-200 border-b-2 border-transparent transition">Subscription History</button>
+    </div>
+
+    <!-- TAB 1: DESTINATIONS & CHARTS -->
+    <div id="content-destinations" class="tab-content space-y-6">
+      <!-- Visual Charts Grid -->
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <!-- Top Domains Bar Chart -->
+        <div class="lg:col-span-2 bg-zinc-900/60 border border-zinc-800/80 rounded-xl p-5">
+          <h3 class="text-sm font-semibold text-zinc-200 mb-4">Top Visited Domains / Services</h3>
+          <div class="relative h-64">
+            <canvas id="topDomainsChart"></canvas>
+          </div>
+        </div>
+
+        <!-- Inbound Share Doughnut -->
+        <div class="bg-zinc-900/60 border border-zinc-800/80 rounded-xl p-5">
+          <h3 class="text-sm font-semibold text-zinc-200 mb-4">Inbound Traffic Share</h3>
+          <div class="relative h-64 flex items-center justify-center">
+            <canvas id="inboundsChart"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- Activity Timeline Chart -->
+      <div class="bg-zinc-900/60 border border-zinc-800/80 rounded-xl p-5">
+        <h3 class="text-sm font-semibold text-zinc-200 mb-4">Connection Activity Over Time</h3>
+        <div class="relative h-52">
+          <canvas id="timelineChart"></canvas>
+        </div>
+      </div>
+
+      <!-- Top Domains Data Table -->
+      <div class="bg-zinc-900/60 border border-zinc-800/80 rounded-xl overflow-hidden">
+        <div class="p-4 border-b border-zinc-800/80 flex flex-wrap items-center justify-between gap-4">
+          <h3 class="text-sm font-semibold text-zinc-200">Destinations Breakdown</h3>
+          <div class="relative w-64">
+            <input type="text" id="domainSearch" oninput="debounceLoadDomains()" placeholder="Search domain or category..." class="w-full bg-zinc-950 border border-zinc-800 text-xs rounded-lg px-3 py-1.5 text-zinc-200 focus:outline-none focus:border-brand-500">
+          </div>
+        </div>
+        <div class="overflow-x-auto custom-scrollbar">
+          <table class="w-full text-left text-xs text-zinc-300">
+            <thead class="bg-zinc-950/60 text-zinc-400 uppercase font-medium border-b border-zinc-800/80">
+              <tr>
+                <th class="px-4 py-3">#</th>
+                <th class="px-4 py-3">Destination Domain</th>
+                <th class="px-4 py-3">Category</th>
+                <th class="px-4 py-3 text-right">Total Hits</th>
+                <th class="px-4 py-3 text-right">Unique Users</th>
+                <th class="px-4 py-3 text-center">Action</th>
+              </tr>
+            </thead>
+            <tbody id="domainsTableBody" class="divide-y divide-zinc-800/40">
+              <tr><td colspan="6" class="px-4 py-8 text-center text-zinc-500">Loading destinations...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 2: USERS MATRIX -->
+    <div id="content-users" class="tab-content hidden space-y-4">
+      <div class="bg-zinc-900/60 border border-zinc-800/80 rounded-xl overflow-hidden">
+        <div class="p-4 border-b border-zinc-800/80 flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <h3 class="text-sm font-semibold text-zinc-200">Registered Remnawave Users</h3>
+            <p class="text-xs text-zinc-500">Click any user to inspect their visited websites and inbounds</p>
+          </div>
+          <div class="w-64">
+            <input type="text" id="userSearchInput" oninput="debounceLoadUsers()" placeholder="Search username or ID..." class="w-full bg-zinc-950 border border-zinc-800 text-xs rounded-lg px-3 py-1.5 text-zinc-200 focus:outline-none focus:border-brand-500">
+          </div>
+        </div>
+        <div class="overflow-x-auto custom-scrollbar">
+          <table class="w-full text-left text-xs text-zinc-300">
+            <thead class="bg-zinc-950/60 text-zinc-400 uppercase font-medium border-b border-zinc-800/80">
+              <tr>
+                <th class="px-4 py-3">User ID</th>
+                <th class="px-4 py-3">Username</th>
+                <th class="px-4 py-3">Ingress Route</th>
+                <th class="px-4 py-3">Status</th>
+                <th class="px-4 py-3 text-right">Requests in Range</th>
+                <th class="px-4 py-3 text-right">Unique Domains Visited</th>
+                <th class="px-4 py-3">Last Active</th>
+                <th class="px-4 py-3 text-center">Inspect</th>
+              </tr>
+            </thead>
+            <tbody id="usersTableBody" class="divide-y divide-zinc-800/40">
+              <tr><td colspan="7" class="px-4 py-8 text-center text-zinc-500">Loading users...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 3: LIVE STREAM -->
+    <div id="content-live" class="tab-content hidden space-y-4">
+      <div class="bg-zinc-900/60 border border-zinc-800/80 rounded-xl overflow-hidden">
+        <div class="p-4 border-b border-zinc-800/80 flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <h3 class="text-sm font-semibold text-zinc-200">Real-Time Connection Stream</h3>
+            <span class="text-xs text-zinc-500">(Auto-tails Xray core logs)</span>
+          </div>
+          <div class="w-64">
+            <input type="text" id="liveSearchInput" oninput="loadLiveStream()" placeholder="Filter stream (dest, ip, user)..." class="w-full bg-zinc-950 border border-zinc-800 text-xs rounded-lg px-3 py-1.5 text-zinc-200 focus:outline-none focus:border-brand-500">
+          </div>
+        </div>
+        <div class="overflow-x-auto custom-scrollbar">
+          <table class="w-full text-left text-xs font-mono text-zinc-300">
+            <thead class="bg-zinc-950/60 text-zinc-400 uppercase font-sans font-medium border-b border-zinc-800/80">
+              <tr>
+                <th class="px-4 py-2.5">Time (Tehran)</th>
+                <th class="px-4 py-2.5">User</th>
+                <th class="px-4 py-2.5">Ingress</th>
+                <th class="px-4 py-2.5">Proto</th>
+                <th class="px-4 py-2.5">Destination</th>
+                <th class="px-4 py-2.5">Port</th>
+                <th class="px-4 py-2.5">Route Pathway</th>
+                <th class="px-4 py-2.5">Involved Nodes</th>
+              </tr>
+            </thead>
+            <tbody id="liveTableBody" class="divide-y divide-zinc-800/40">
+              <tr><td colspan="7" class="px-4 py-8 text-center font-sans text-zinc-500">Waiting for live connections...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 4: INBOUND GATEWAYS -->
+    <div id="content-inbounds" class="tab-content hidden space-y-4">
+      <div class="bg-zinc-900/60 border border-zinc-800/80 rounded-xl overflow-hidden">
+        <div class="p-4 border-b border-zinc-800/80 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h3 class="text-sm font-semibold text-zinc-200">Inbound Gateway Activity</h3>
+            <p class="text-xs text-zinc-500">Live traffic per route mapped across supporting tunnel and bridge nodes</p>
+          </div>
+          <div class="flex items-center gap-2">
+            <label for="inboundNodeFilter" class="text-xs text-zinc-400">Filter Node:</label>
+            <select id="inboundNodeFilter" onchange="loadInbounds()" class="bg-zinc-950 border border-zinc-800 text-xs rounded-lg px-3 py-1.5 text-zinc-200 focus:outline-none focus:border-brand-500">
+              <option value="">All Nodes</option>
+            </select>
+          </div>
+        </div>
+        <div class="overflow-x-auto custom-scrollbar">
+          <table class="w-full text-left text-xs text-zinc-300 min-w-[780px]">
+            <thead class="bg-zinc-950/60 text-zinc-400 uppercase font-medium border-b border-zinc-800/80">
+              <tr>
+                <th class="px-4 py-3">Inbound Route</th>
+                <th class="px-4 py-3">Direct Ingress (DE1)</th>
+                <th class="px-4 py-3">Tunneled Ingress (IR1)</th>
+                <th class="px-4 py-3 text-right">Data Volume</th>
+                <th class="px-4 py-3 text-right">Total Requests</th>
+                <th class="px-4 py-3 text-right">Total Users</th>
+                <th class="px-4 py-3 text-right">Traffic Share</th>
+              </tr>
+            </thead>
+            <tbody id="inboundsTableBody" class="divide-y divide-zinc-800/40 font-mono text-[11px]">
+              <tr><td colspan="8" class="px-4 py-8 text-center text-zinc-500 font-sans">Loading inbounds...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 5: HWID INSPECTOR -->
+    <div id="content-hwid" class="tab-content hidden space-y-6">
+      <!-- HWID KPI Cards -->
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div class="bg-zinc-900/60 border border-zinc-800/80 rounded-xl p-4">
+          <span class="text-xs text-zinc-400 font-medium">Registered HWID Devices</span>
+          <div class="mt-2 flex items-baseline gap-2">
+            <span id="hwidTotalDevices" class="text-2xl font-bold text-white tracking-tight">-</span>
+            <span class="text-xs text-zinc-500">active bindings</span>
+          </div>
+        </div>
+        <div class="bg-zinc-900/60 border border-zinc-800/80 rounded-xl p-4">
+          <span class="text-xs text-zinc-400 font-medium">Top Platforms</span>
+          <div id="hwidPlatformPills" class="mt-2 flex flex-wrap gap-1.5 text-xs text-zinc-300">
+            <span class="text-zinc-500">Loading...</span>
+          </div>
+        </div>
+        <div class="bg-zinc-900/60 border border-zinc-800/80 rounded-xl p-4">
+          <span class="text-xs text-zinc-400 font-medium">Top Apps</span>
+          <div id="hwidAppPills" class="mt-2 flex flex-wrap gap-1.5 text-xs text-zinc-300">
+            <span class="text-zinc-500">Loading...</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- HWID Devices Table -->
+      <div class="bg-zinc-900/60 border border-zinc-800/80 rounded-xl overflow-hidden">
+        <div class="p-4 border-b border-zinc-800/80 flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <h3 class="text-sm font-semibold text-zinc-200">Device Fingerprint Registry</h3>
+            <p class="text-xs text-zinc-500">Hardware IDs and client client profiles bound to Remnawave users</p>
+          </div>
+          <input type="text" id="hwidSearch" placeholder="Search user, platform, app..." oninput="filterHwidTable()" class="bg-zinc-950 border border-zinc-800 text-xs text-zinc-300 rounded-lg px-3 py-1.5 w-64 focus:outline-none focus:border-brand-500">
+        </div>
+        <div class="overflow-x-auto custom-scrollbar max-h-[600px]">
+          <table class="w-full text-left text-xs text-zinc-300">
+            <thead class="bg-zinc-950/60 text-zinc-400 uppercase font-medium border-b border-zinc-800/80 sticky top-0">
+              <tr>
+                <th class="px-4 py-3">User</th>
+                <th class="px-4 py-3">Platform</th>
+                <th class="px-4 py-3">Device Model</th>
+                <th class="px-4 py-3">OS Version</th>
+                <th class="px-4 py-3">Client / App</th>
+                <th class="px-4 py-3">HWID Hash</th>
+                <th class="px-4 py-3 text-right">Last Active (Tehran)</th>
+              </tr>
+            </thead>
+            <tbody id="hwidTableBody" class="divide-y divide-zinc-800/40">
+              <tr><td colspan="7" class="px-4 py-8 text-center text-zinc-500">Loading HWID devices...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 6: SRH INSPECTOR (Subscription Request History) -->
+    <div id="content-srh" class="tab-content hidden space-y-6">
+      <!-- SRH KPI Cards -->
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div class="bg-zinc-900/60 border border-zinc-800/80 rounded-xl p-4">
+          <span class="text-xs text-zinc-400 font-medium">Subscription Pulls (Recent)</span>
+          <div class="mt-2 flex items-baseline gap-2">
+            <span id="srhTotalPulls" class="text-2xl font-bold text-white tracking-tight">-</span>
+            <span class="text-xs text-zinc-500">records</span>
+          </div>
+        </div>
+        <div class="sm:col-span-2 bg-zinc-900/60 border border-zinc-800/80 rounded-xl p-4">
+          <span class="text-xs text-zinc-400 font-medium">Top Client Apps Fetching Subscriptions</span>
+          <div id="srhAppPills" class="mt-2 flex flex-wrap gap-2 text-xs">
+            <span class="text-zinc-500">Loading...</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- SRH Table -->
+      <div class="bg-zinc-900/60 border border-zinc-800/80 rounded-xl overflow-hidden">
+        <div class="p-4 border-b border-zinc-800/80 flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <h3 class="text-sm font-semibold text-zinc-200">Subscription Request Stream</h3>
+            <p class="text-xs text-zinc-500">Live subscription link pulls with client IP, app headers, and rule matching</p>
+          </div>
+          <input type="text" id="srhSearch" placeholder="Search user, IP, app..." oninput="filterSrhTable()" class="bg-zinc-950 border border-zinc-800 text-xs text-zinc-300 rounded-lg px-3 py-1.5 w-64 focus:outline-none focus:border-brand-500">
+        </div>
+        <div class="overflow-x-auto custom-scrollbar max-h-[600px]">
+          <table class="w-full text-left text-xs text-zinc-300">
+            <thead class="bg-zinc-950/60 text-zinc-400 uppercase font-medium border-b border-zinc-800/80 sticky top-0">
+              <tr>
+                <th class="px-4 py-3">Time (Tehran)</th>
+                <th class="px-4 py-3">User</th>
+                <th class="px-4 py-3">Client IP</th>
+                <th class="px-4 py-3">App / Client</th>
+                <th class="px-4 py-3">Rule / Format</th>
+                <th class="px-4 py-3">User Agent</th>
+              </tr>
+            </thead>
+            <tbody id="srhTableBody" class="divide-y divide-zinc-800/40 font-mono text-[11px]">
+              <tr><td colspan="6" class="px-4 py-8 text-center text-zinc-500 font-sans text-xs">Loading subscription requests...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 7: SESSION EXPLORATION & NODES (BRIDGE - TUNNEL - OUTBOUND) -->
+    <div id="content-sessions" class="tab-content hidden space-y-6">
+      <div class="p-4 bg-zinc-900/80 border border-zinc-800 rounded-xl text-xs text-zinc-300 flex flex-wrap items-center justify-between gap-3">
+        <div class="flex items-center gap-2">
+          <span class="w-2 h-2 rounded-full bg-brand-500 animate-pulse"></span>
+          <span class="font-medium text-white">Three-Tier Network Topology:</span>
+          <span class="text-zinc-400">TUNNEL (Ingress Bridge) → BRIDGE (Core Gateway & Full DPI) → OUTBOUND (Exit Relay)</span>
+        </div>
+        <div class="flex items-center gap-2 text-[11px] font-mono">
+          <span class="px-2 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20">TUNNEL: Inbound Only</span>
+          <span class="px-2 py-0.5 rounded bg-indigo-500/10 text-indigo-300 border border-indigo-500/20">BRIDGE: Full Analysis</span>
+          <span class="px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">OUTBOUND: Exit Relay</span>
+        </div>
+      </div>
+
+      <!-- Live Nodes Grid (All Roles: BRIDGE, TUNNEL, OUTBOUND) -->
+      <div id="sessionsNodesGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+        <div class="col-span-full p-8 text-center text-zinc-500">Loading live node topology...</div>
+      </div>
+    </div>
+
+    <!-- TAB 8: BANDWIDTH & MONTHLY TRENDS (SKIPPING IRAN) -->
+    <div id="content-bandwidth" class="tab-content hidden space-y-6">
+      <!-- Recap Metrics Cards -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div class="bg-zinc-900/60 border border-zinc-800/80 rounded-xl p-4">
+          <span class="text-xs text-zinc-400 font-medium">Last 2 Days Traffic</span>
+          <div class="mt-2 flex flex-col">
+            <span id="bwTwoDays" class="text-2xl font-bold text-white tracking-tight">-</span>
+            <span id="bwTwoDaysDiff" class="text-xs text-zinc-500 mt-0.5"></span>
+          </div>
+        </div>
+        <div class="bg-zinc-900/60 border border-zinc-800/80 rounded-xl p-4">
+          <span class="text-xs text-zinc-400 font-medium">Last 7 Days Traffic</span>
+          <div class="mt-2 flex flex-col">
+            <span id="bwSevenDays" class="text-2xl font-bold text-emerald-400 tracking-tight">-</span>
+            <span id="bwSevenDaysDiff" class="text-xs text-zinc-500 mt-0.5"></span>
+          </div>
+        </div>
+        <div class="bg-zinc-900/60 border border-zinc-800/80 rounded-xl p-4">
+          <span class="text-xs text-zinc-400 font-medium">This Month (Total)</span>
+          <div class="mt-2 flex flex-col">
+            <span id="bwThisMonth" class="text-2xl font-bold text-indigo-400 tracking-tight">-</span>
+            <span class="text-xs text-zinc-500 mt-0.5">Across genuine exit nodes</span>
+          </div>
+        </div>
+        <div class="bg-zinc-900/60 border border-zinc-800/80 rounded-xl p-4">
+          <span class="text-xs text-zinc-400 font-medium">All-Time Platform Traffic</span>
+          <div class="mt-2 flex flex-col">
+            <span id="bwAllTime" class="text-2xl font-bold text-brand-400 tracking-tight">-</span>
+            <span id="bwAllTimeSub" class="text-xs text-zinc-500 mt-0.5"></span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Node Daily Chart -->
+      <div class="bg-zinc-900/60 border border-zinc-800/80 rounded-xl p-5">
+        <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+          <div>
+            <h3 class="text-sm font-semibold text-zinc-200">Egress Bandwidth Over Time</h3>
+            <p class="text-xs text-zinc-500">Historical traffic trends per exit node (excluding Iran tunnel)</p>
+          </div>
+          <!-- Range Selector Buttons -->
+          <div class="flex rounded-lg bg-zinc-950 p-1 border border-zinc-800 text-xs">
+            <button onclick="changeBwRange('7d')" id="bwBtn-7d" class="bw-range-btn px-2.5 py-1 rounded-md text-white bg-brand-600 font-medium transition">7 Days</button>
+            <button onclick="changeBwRange('30d')" id="bwBtn-30d" class="bw-range-btn px-2.5 py-1 rounded-md text-zinc-400 hover:text-zinc-200 transition">30 Days (Monthly)</button>
+            <button onclick="changeBwRange('90d')" id="bwBtn-90d" class="bw-range-btn px-2.5 py-1 rounded-md text-zinc-400 hover:text-zinc-200 transition">90 Days</button>
+            <button onclick="changeBwRange('365d')" id="bwBtn-365d" class="bw-range-btn px-2.5 py-1 rounded-md text-zinc-400 hover:text-zinc-200 transition">1 Year (Yearly)</button>
+          </div>
+        </div>
+        <div class="relative h-72">
+          <canvas id="nodeBandwidthChart"></canvas>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- MODAL: USER DRILLDOWN -->
+  <div id="userModal" class="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm hidden flex items-center justify-center p-2 sm:p-4">
+    <div class="bg-zinc-900 border border-zinc-800 rounded-xl max-w-4xl w-full max-h-[90vh] flex flex-col overflow-hidden shadow-2xl">
+      <div class="p-5 border-b border-zinc-800 flex items-center justify-between">
+        <div>
+          <h3 id="modalUserName" class="text-base font-semibold text-white flex items-center gap-2"></h3>
+          <p id="modalUserSub" class="text-xs text-zinc-400 mt-0.5"></p>
+        </div>
+        <button onclick="closeModal('userModal')" class="text-zinc-400 hover:text-white p-1.5 rounded-lg hover:bg-zinc-800 text-lg transition">✕</button>
+      </div>
+      <div class="p-5 overflow-y-auto custom-scrollbar space-y-6">
+        <!-- User Hardware Devices (HWID) -->
+        <div>
+          <h4 class="text-xs font-semibold uppercase text-zinc-400 mb-2 tracking-wider flex items-center justify-between">
+            <span>Hardware Devices (HWID Fingerprint)</span>
+            <span id="modalDeviceCount" class="text-[11px] font-mono text-zinc-500 font-normal"></span>
+          </h4>
+          <div id="modalUserDevices" class="space-y-2 overflow-x-auto custom-scrollbar"></div>
+        </div>
+
+        <!-- User Subscription Request History (SRH) -->
+        <div>
+          <h4 class="text-xs font-semibold uppercase text-zinc-400 mb-2 tracking-wider flex items-center justify-between">
+            <span>Subscription Request History (SRH)</span>
+            <span id="modalSrhCount" class="text-[11px] font-mono text-zinc-500 font-normal"></span>
+          </h4>
+          <div class="border border-zinc-800 rounded-lg overflow-x-auto max-h-56 custom-scrollbar">
+            <table class="w-full min-w-[620px] text-left text-xs text-zinc-300">
+              <thead class="bg-zinc-950/60 text-zinc-400 uppercase font-mono text-[10px] sticky top-0">
+                <tr>
+                  <th class="px-3 py-2">Time (Tehran)</th>
+                  <th class="px-3 py-2">Client IP</th>
+                  <th class="px-3 py-2">Client / App</th>
+                  <th class="px-3 py-2">Rule / Format</th>
+                  <th class="px-3 py-2">User Agent</th>
+                </tr>
+              </thead>
+              <tbody id="modalUserSrh" class="divide-y divide-zinc-800/40 font-mono text-[11px]"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- User Top Destinations -->
+        <div>
+          <h4 class="text-xs font-semibold uppercase text-zinc-400 mb-2 tracking-wider">Top Destinations Visited by this User</h4>
+          <div class="border border-zinc-800 rounded-lg overflow-x-auto max-h-56 custom-scrollbar">
+            <table class="w-full min-w-[480px] text-left text-xs text-zinc-300">
+              <thead class="bg-zinc-950/60 text-zinc-400 uppercase">
+                <tr>
+                  <th class="px-3 py-2">Domain</th>
+                  <th class="px-3 py-2">Category</th>
+                  <th class="px-3 py-2 text-right">Hits</th>
+                </tr>
+              </thead>
+              <tbody id="modalUserDomains" class="divide-y divide-zinc-800/40"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Recent User Connections -->
+        <div>
+          <h4 class="text-xs font-semibold uppercase text-zinc-400 mb-2 tracking-wider">Recent Connection Log</h4>
+          <div class="border border-zinc-800 rounded-lg overflow-x-auto max-h-56 custom-scrollbar">
+            <table class="w-full min-w-[600px] text-left text-xs font-mono text-zinc-300">
+              <thead class="bg-zinc-950/60 font-sans text-zinc-400 uppercase">
+                <tr>
+                  <th class="px-3 py-2">Time (Tehran)</th>
+                  <th class="px-3 py-2">Target</th>
+                  <th class="px-3 py-2">Pathway (Tunnel → Bridge → Outbound)</th>
+                </tr>
+              </thead>
+              <tbody id="modalUserRecent" class="divide-y divide-zinc-800/40"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: DOMAIN DRILLDOWN -->
+  <div id="domainModal" class="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm hidden flex items-center justify-center p-4">
+    <div class="bg-zinc-900 border border-zinc-800 rounded-xl max-w-2xl w-full max-h-[85vh] flex flex-col overflow-hidden shadow-2xl">
+      <div class="p-5 border-b border-zinc-800 flex items-center justify-between">
+        <div>
+          <h3 id="modalDomainName" class="text-base font-semibold text-white"></h3>
+          <p class="text-xs text-zinc-400 mt-0.5">Which users visited this destination</p>
+        </div>
+        <button onclick="closeModal('domainModal')" class="text-zinc-400 hover:text-white p-1 rounded-lg hover:bg-zinc-800 text-lg">✕</button>
+      </div>
+      <div class="p-5 overflow-y-auto custom-scrollbar space-y-4">
+        <div class="border border-zinc-800 rounded-lg overflow-hidden">
+          <table class="w-full text-left text-xs text-zinc-300">
+            <thead class="bg-zinc-950/60 text-zinc-400 uppercase">
+              <tr>
+                <th class="px-4 py-2.5">User</th>
+                <th class="px-4 py-2.5 text-right">Hit Count</th>
+                <th class="px-4 py-2.5">Last Seen</th>
+              </tr>
+            </thead>
+            <tbody id="modalDomainUsers" class="divide-y divide-zinc-800/40"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- JAVASCRIPT LOGIC -->
+  <script>
+    let currentHours = 24;
+    let currentUserId = null;
+    let autoRefresh = true;
+    let refreshInterval = null;
+
+    let domainsChartInstance = null;
+    let inboundsChartInstance = null;
+    let timelineChartInstance = null;
+
+    let debounceTimer = null;
+
+    function setTimeRange(hours) {
+      currentHours = hours;
+      document.querySelectorAll('.time-btn').forEach(btn => {
+        if (parseInt(btn.getAttribute('data-hours')) === hours) {
+          btn.className = "time-btn px-2.5 py-1 rounded-md bg-zinc-800 text-white font-medium";
+        } else {
+          btn.className = "time-btn px-2.5 py-1 rounded-md text-zinc-400 hover:text-white transition";
+        }
+      });
+      loadAllData();
+    }
+
+    function switchTab(tabId) {
+      document.querySelectorAll('.tab-content').forEach(c => c.classList.add('hidden'));
+      document.querySelectorAll('.tab-btn').forEach(b => {
+        b.className = "tab-btn pb-3 text-zinc-400 hover:text-zinc-200 border-b-2 border-transparent transition";
+      });
+      document.getElementById('content-' + tabId).classList.remove('hidden');
+      const activeBtn = document.getElementById('tab-' + tabId);
+      if (activeBtn) {
+        activeBtn.className = "tab-btn pb-3 text-white border-b-2 border-brand-500 font-medium";
+      }
+
+      if (tabId === 'destinations') loadDestinations();
+      if (tabId === 'users') loadUsers();
+      if (tabId === 'live') loadLiveStream();
+      if (tabId === 'inbounds') loadInbounds();
+      if (tabId === 'hwid') loadHwid();
+      if (tabId === 'srh') loadSrh();
+      if (tabId === 'sessions') loadSessions();
+      if (tabId === 'bandwidth') loadBandwidth();
+    }
+
+    function toggleAutoRefresh() {
+      autoRefresh = !autoRefresh;
+      const text = document.getElementById('liveBtnText');
+      if (autoRefresh) {
+        text.innerText = "Auto-Refresh On";
+        startAutoRefresh();
+      } else {
+        text.innerText = "Auto-Refresh Off";
+        stopAutoRefresh();
+      }
+    }
+
+    function startAutoRefresh() {
+      stopAutoRefresh();
+      refreshInterval = setInterval(() => {
+        loadSummary();
+        const activeTab = document.querySelector('.tab-content:not(.hidden)').id;
+        if (activeTab === 'content-live') loadLiveStream();
+      }, 4000);
+    }
+
+    function stopAutoRefresh() {
+      if (refreshInterval) clearInterval(refreshInterval);
+    }
+
+    function onFilterChange() {
+      const select = document.getElementById('userFilter');
+      currentUserId = select.value ? parseInt(select.value) : null;
+      loadAllData();
+    }
+
+    async function loadUsersDropdown() {
+      try {
+        const res = await fetch('/api/users?hours=168');
+        const users = await res.json();
+        const select = document.getElementById('userFilter');
+        select.innerHTML = '<option value="">All Users</option>';
+        users.forEach(u => {
+          const opt = document.createElement('option');
+          opt.value = u.user_id;
+          opt.textContent = `${u.username} (#${u.user_id})`;
+          select.appendChild(opt);
+        });
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    async function loadSummary() {
+      try {
+        let url = `/api/summary?hours=${currentHours}`;
+        if (currentUserId) url += `&user_id=${currentUserId}`;
+        const res = await fetch(url);
+        const data = await res.json();
+
+        document.getElementById('statTotalRequests').innerText = Number(data.total_requests).toLocaleString();
+        document.getElementById('statTotalTraffic').innerText = data.remnawave_egress_formatted || data.total_traffic_formatted || '0 B';
+        const egressNodesStr = data.egress_nodes && data.egress_nodes.length > 0 ? `Egress: ${data.egress_nodes.join(', ')}` : 'Remnawave Egress';
+        document.getElementById('statTrafficSub').innerText = data.egress_timeframe_label ? `${egressNodesStr} (${data.egress_timeframe_label})` : egressNodesStr;
+        document.getElementById('statActiveUsers').innerText = data.active_users;
+        document.getElementById('statTopDomain').innerText = data.top_domain;
+        document.getElementById('statTopDomainHits').innerText = data.top_domain_hits ? `(${Number(data.top_domain_hits).toLocaleString()} hits)` : '';
+        document.getElementById('statTopInbound').innerText = data.top_inbound;
+        document.getElementById('statTopInboundHits').innerText = data.top_inbound_hits ? `(${Number(data.top_inbound_hits).toLocaleString()} hits)` : '';
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    function getCategoryBadge(cat) {
+      if (cat.includes('Google')) return '<span class="px-2 py-0.5 rounded text-[11px] badge-google">Google / YouTube</span>';
+      if (cat.includes('Meta') || cat.includes('Instagram')) return '<span class="px-2 py-0.5 rounded text-[11px] badge-meta">Instagram / Meta</span>';
+      if (cat.includes('Telegram')) return '<span class="px-2 py-0.5 rounded text-[11px] badge-telegram">Telegram</span>';
+      if (cat.includes('Apple')) return '<span class="px-2 py-0.5 rounded text-[11px] badge-apple">Apple</span>';
+      if (cat.includes('Twitter')) return '<span class="px-2 py-0.5 rounded text-[11px] badge-twitter">X (Twitter)</span>';
+      return `<span class="px-2 py-0.5 rounded text-[11px] badge-general">${cat}</span>`;
+    }
+
+    async function loadDestinations() {
+      try {
+        const search = document.getElementById('domainSearch').value.trim();
+        let url = `/api/top-domains?hours=${currentHours}&limit=50`;
+        if (currentUserId) url += `&user_id=${currentUserId}`;
+        if (search) url += `&search=${encodeURIComponent(search)}`;
+
+        const res = await fetch(url);
+        const items = await res.json();
+
+        // Update Table
+        const tbody = document.getElementById('domainsTableBody');
+        if (items.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="6" class="px-4 py-8 text-center text-zinc-500">No destinations recorded yet.</td></tr>';
+        } else {
+          tbody.innerHTML = items.map((d, i) => `
+            <tr class="hover:bg-zinc-800/30 transition">
+              <td class="px-4 py-2.5 text-zinc-500">${i + 1}</td>
+              <td class="px-4 py-2.5 font-medium text-zinc-100 flex items-center gap-2">
+                <span class="w-1.5 h-1.5 rounded-full bg-brand-500"></span>
+                ${d.root_domain}
+              </td>
+              <td class="px-4 py-2.5">${getCategoryBadge(d.category)}</td>
+              <td class="px-4 py-2.5 text-right font-mono font-medium text-zinc-200">${Number(d.total_hits).toLocaleString()}</td>
+              <td class="px-4 py-2.5 text-right font-mono text-zinc-400">${d.users_count}</td>
+              <td class="px-4 py-2.5 text-center">
+                <button onclick="inspectDomain('${d.root_domain}')" class="px-2 py-1 rounded bg-zinc-800 hover:bg-zinc-700 text-[11px] text-zinc-300 transition">
+                  Users
+                </button>
+              </td>
+            </tr>
+          `).join('');
+        }
+
+        // Render Bar Chart (top 10)
+        renderDomainsChart(items.slice(0, 10));
+
+        // Render Inbounds Doughnut
+        loadInboundsChart();
+
+        // Render Timeline
+        loadTimeline();
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    function renderDomainsChart(dataItems) {
+      const ctx = document.getElementById('topDomainsChart').getContext('2d');
+      const labels = dataItems.map(d => d.root_domain);
+      const values = dataItems.map(d => d.total_hits);
+
+      if (domainsChartInstance) domainsChartInstance.destroy();
+
+      domainsChartInstance = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: labels,
+          datasets: [{
+            label: 'Connection Hits',
+            data: values,
+            backgroundColor: 'rgba(99, 102, 241, 0.7)',
+            borderColor: 'rgba(99, 102, 241, 1)',
+            borderWidth: 1,
+            borderRadius: 6
+          }]
+        },
+        options: {
+          indexAxis: 'y',
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: {
+            x: { grid: { color: '#27272a' }, ticks: { color: '#71717a' } },
+            y: { grid: { display: false }, ticks: { color: '#d4d4d8' } }
+          }
+        }
+      });
+    }
+
+    async function loadInboundsChart() {
+      try {
+        let url = `/api/top-inbounds?hours=${currentHours}`;
+        if (currentUserId) url += `&user_id=${currentUserId}`;
+        const res = await fetch(url);
+        const data = await res.json();
+        const list = Array.isArray(data) ? data : (data.chains || []);
+
+        const ctx = document.getElementById('inboundsChart').getContext('2d');
+        if (inboundsChartInstance) inboundsChartInstance.destroy();
+
+        if (list.length === 0) return;
+
+        const labels = list.map(i => i.inbound || i.tag);
+        const values = list.map(i => i.total_hits);
+
+        inboundsChartInstance = new Chart(ctx, {
+          type: 'doughnut',
+          data: {
+            labels: labels,
+            datasets: [{
+              data: values,
+              backgroundColor: [
+                '#6366f1', '#10b981', '#f59e0b', '#ec4899', '#06b6d4', '#8b5cf6', '#3b82f6', '#14b8a6'
+              ],
+              borderWidth: 0
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: { position: 'bottom', labels: { color: '#a1a1aa', boxWidth: 12 } }
+            }
+          }
+        });
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    async function loadTimeline() {
+      try {
+        let url = `/api/timeline?hours=${currentHours}`;
+        if (currentUserId) url += `&user_id=${currentUserId}`;
+        const res = await fetch(url);
+        const points = await res.json();
+
+        const ctx = document.getElementById('timelineChart').getContext('2d');
+        if (timelineChartInstance) timelineChartInstance.destroy();
+
+        const labels = points.map(p => {
+          const t = toTehranTime(p.hour_bucket);
+          const parts = t.split(' ');
+          if (parts.length >= 2) {
+            const timePart = parts[1].slice(0, 5);
+            return currentHours > 24 ? `${parts[0].slice(0, 5)} ${timePart}` : timePart;
+          }
+          return p.hour_bucket.slice(11, 16);
+        });
+        const values = points.map(p => p.hits);
+
+        timelineChartInstance = new Chart(ctx, {
+          type: 'line',
+          data: {
+            labels: labels,
+            datasets: [{
+              label: 'Requests',
+              data: values,
+              fill: true,
+              backgroundColor: 'rgba(99, 102, 241, 0.1)',
+              borderColor: '#6366f1',
+              tension: 0.3,
+              pointRadius: 2
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: { display: false },
+              tooltip: {
+                callbacks: {
+                  title: (items) => {
+                    if (!items.length) return '';
+                    const idx = items[0].dataIndex;
+                    return `${toTehranTime(points[idx].hour_bucket)} (Tehran Time)`;
+                  }
+                }
+              }
+            },
+            scales: {
+              x: { grid: { display: false }, ticks: { color: '#71717a' } },
+              y: { grid: { color: '#27272a' }, ticks: { color: '#71717a' } }
+            }
+          }
+        });
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    async function loadUsers() {
+      try {
+        const search = document.getElementById('userSearchInput').value.trim();
+        let url = `/api/users?hours=${currentHours}`;
+        if (search) url += `&search=${encodeURIComponent(search)}`;
+
+        const res = await fetch(url);
+        const users = await res.json();
+
+        const tbody = document.getElementById('usersTableBody');
+        if (users.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="7" class="px-4 py-8 text-center text-zinc-500">No users found.</td></tr>';
+          return;
+        }
+
+        tbody.innerHTML = users.map(u => {
+          const isTunneled = u.connected_node && u.connected_node.toUpperCase().includes('IR');
+          const ingressBadge = isTunneled
+            ? `<span class="px-2 py-0.5 rounded text-[10px] font-medium bg-amber-500/15 text-amber-300 border border-amber-500/25">TUNNEL (${u.connected_node})</span>`
+            : `<span class="px-2 py-0.5 rounded text-[10px] font-medium bg-emerald-500/15 text-emerald-300 border border-emerald-500/25">DIRECT (${u.connected_node || 'DE1'})</span>`;
+
+          return `
+            <tr class="hover:bg-zinc-800/30 transition">
+              <td class="px-4 py-3 font-mono text-zinc-400">#${u.user_id}</td>
+              <td class="px-4 py-3 font-medium text-white flex items-center gap-2">
+                <span class="w-2 h-2 rounded-full ${u.status === 'ACTIVE' ? 'bg-emerald-500' : 'bg-zinc-600'}"></span>
+                ${u.username}
+              </td>
+              <td class="px-4 py-3">${ingressBadge}</td>
+              <td class="px-4 py-3">
+                <span class="px-2 py-0.5 rounded text-[11px] ${u.status === 'ACTIVE' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-zinc-800 text-zinc-400'}">${u.status}</span>
+              </td>
+              <td class="px-4 py-3 text-right font-mono font-medium text-zinc-200">${Number(u.total_hits).toLocaleString()}</td>
+              <td class="px-4 py-3 text-right font-mono text-zinc-400">${u.unique_domains}</td>
+              <td class="px-4 py-3 font-mono text-zinc-400">${toTehranTime(u.last_seen)}</td>
+              <td class="px-4 py-3 text-center">
+                <button onclick="inspectUser(${u.user_id}, '${u.username}')" class="px-2.5 py-1 rounded bg-brand-600/20 text-brand-400 border border-brand-500/30 hover:bg-brand-600 hover:text-white transition text-xs font-medium">
+                  View Activity
+                </button>
+              </td>
+            </tr>
+          `;
+        }).join('');
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    async function loadLiveStream() {
+      try {
+        const search = document.getElementById('liveSearchInput').value.trim();
+        let url = `/api/live-stream?limit=40`;
+        if (currentUserId) url += `&user_id=${currentUserId}`;
+        if (search) url += `&search=${encodeURIComponent(search)}`;
+
+        const res = await fetch(url);
+        const rows = await res.json();
+
+        const tbody = document.getElementById('liveTableBody');
+        if (rows.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="7" class="px-4 py-8 text-center text-zinc-500">No recent connections recorded.</td></tr>';
+          return;
+        }
+
+        tbody.innerHTML = rows.map(r => {
+          const ingressBadge = r.is_direct
+            ? `<span class="px-2 py-0.5 rounded text-[10px] font-medium bg-emerald-500/15 text-emerald-300 border border-emerald-500/25">DIRECT (${r.ingress_node || 'DE1'})</span>`
+            : `<span class="px-2 py-0.5 rounded text-[10px] font-medium bg-amber-500/15 text-amber-300 border border-amber-500/25">TUNNEL (${r.ingress_node || 'IR1'})</span>`;
+
+          return `
+            <tr class="hover:bg-zinc-800/30 transition text-[11px]">
+              <td class="px-4 py-1.5 text-zinc-400 whitespace-nowrap">${toTehranTime(r.ts)}</td>
+              <td class="px-4 py-1.5 font-sans font-medium text-zinc-200">${r.username} <span class="text-zinc-500">(#${r.user_id})</span></td>
+              <td class="px-4 py-1.5 whitespace-nowrap">${ingressBadge}</td>
+              <td class="px-4 py-1.5 uppercase text-zinc-400">${r.proto}</td>
+              <td class="px-4 py-1.5 text-indigo-300 font-medium truncate max-w-xs">${r.dest}</td>
+              <td class="px-4 py-1.5 text-zinc-400">${r.port}</td>
+              <td class="px-4 py-1.5 whitespace-nowrap">${formatRoutePathway(r.inbound, r.outbound, r)}</td>
+              <td class="px-4 py-1.5 whitespace-nowrap">${renderInvolvedNodes(r)}</td>
+            </tr>
+          `;
+        }).join('');
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    async function loadInbounds() {
+      try {
+        const nodeFilterEl = document.getElementById('inboundNodeFilter');
+        const selectedNode = nodeFilterEl ? nodeFilterEl.value : '';
+
+        const tbody = document.getElementById('inboundsTableBody');
+        tbody.innerHTML = Array.from({ length: 6 }).map(() => `
+          <tr class="animate-pulse border-b border-zinc-800/40">
+            <td class="px-4 py-3"><div class="h-4 w-28 bg-zinc-800 rounded"></div></td>
+            <td class="px-4 py-3"><div class="h-4 w-16 bg-zinc-800 rounded"></div></td>
+            <td class="px-4 py-3"><div class="h-4 w-12 bg-zinc-800 rounded"></div></td>
+            <td class="px-4 py-3"><div class="h-4 w-12 bg-zinc-800 rounded"></div></td>
+            <td class="px-4 py-3 text-right"><div class="h-4 w-20 bg-zinc-800 rounded ml-auto"></div></td>
+            <td class="px-4 py-3 text-right"><div class="h-4 w-14 bg-zinc-800 rounded ml-auto"></div></td>
+            <td class="px-4 py-3 text-right"><div class="h-4 w-10 bg-zinc-800 rounded ml-auto"></div></td>
+            <td class="px-4 py-3 text-right"><div class="h-4 w-16 bg-zinc-800 rounded ml-auto"></div></td>
+          </tr>
+        `).join('');
+
+        let url = `/api/top-inbounds?hours=${currentHours}`;
+        if (currentUserId) url += `&user_id=${currentUserId}`;
+        if (selectedNode) url += `&node=${encodeURIComponent(selectedNode)}`;
+
+        const res = await fetch(url);
+        const data = await res.json();
+        const chains = data.chains || [];
+        const nodes = data.nodes || [];
+
+        // Dynamically populate node filter options if empty
+        if (nodeFilterEl && nodeFilterEl.options.length <= 1 && nodes.length > 0) {
+          nodeFilterEl.innerHTML = '<option value="">All Nodes</option>' + nodes.map(n => 
+            `<option value="${n.name}">${n.shortName} (${n.role})</option>`
+          ).join('');
+          nodeFilterEl.value = selectedNode;
+        }
+
+        const totalHits = chains.reduce((sum, c) => sum + (c.total_hits || 0), 0) || 1;
+
+        if (chains.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="8" class="px-4 py-8 text-center text-zinc-500 font-sans">No inbound traffic recorded for this filter.</td></tr>';
+          return;
+        }
+
+        tbody.innerHTML = chains.map(c => {
+          const share = c.total_hits > 0 ? ((c.total_hits / totalHits) * 100).toFixed(1) : '0.0';
+          const volumeText = (c.total_formatted && c.total_formatted !== '0 B') ? c.total_formatted : '-';
+          const upText = c.uplink_formatted || '0 B';
+          const downText = c.downlink_formatted || '0 B';
+          const ioText = (volumeText !== '-') ? `↑ ${upText} · ↓ ${downText}` : '-';
+
+          const directHits = c.direct_hits || 0;
+          const tunneledHits = c.tunneled_hits || 0;
+          const totalHitsInRoute = c.total_hits || 1;
+
+          const directPct = ((directHits / totalHitsInRoute) * 100).toFixed(1);
+          const tunneledPct = ((tunneledHits / totalHitsInRoute) * 100).toFixed(1);
+
+          return `
+            <tr class="hover:bg-zinc-800/30 transition">
+              <td class="px-4 py-3 font-sans font-medium text-zinc-100 flex items-center gap-2">
+                <span class="w-1.5 h-1.5 rounded-full ${directHits > 0 && tunneledHits > 0 ? 'bg-cyan-400' : (tunneledHits > 0 ? 'bg-amber-400' : 'bg-emerald-400')}"></span>
+                <span>${c.tag}</span>
+              </td>
+              <td class="px-4 py-3">
+                <div class="font-mono text-emerald-400 font-medium">${Number(directHits).toLocaleString()} <span class="text-zinc-500 text-[10px]">(${directPct}%)</span></div>
+                <div class="text-[10px] text-zinc-500 font-sans">via DE1 (${c.direct_users || 0} users)</div>
+              </td>
+              <td class="px-4 py-3">
+                <div class="font-mono text-amber-400 font-medium">${Number(tunneledHits).toLocaleString()} <span class="text-zinc-500 text-[10px]">(${tunneledPct}%)</span></div>
+                <div class="text-[10px] text-zinc-500 font-sans">via IR1 (${c.tunneled_users || 0} users)</div>
+              </td>
+              <td class="px-4 py-3 text-right">
+                <div class="font-mono font-medium text-zinc-200">${volumeText}</div>
+                <div class="font-mono text-[10px] text-zinc-500 mt-0.5">${ioText}</div>
+              </td>
+              <td class="px-4 py-3 text-right font-mono font-medium text-zinc-200">${c.total_hits > 0 ? Number(c.total_hits).toLocaleString() : '-'}</td>
+              <td class="px-4 py-3 text-right font-mono text-zinc-400">${c.users_count > 0 ? c.users_count : '-'}</td>
+              <td class="px-4 py-3 text-right">
+                <div class="flex items-center justify-end gap-2">
+                  <div class="w-16 bg-zinc-800 h-1.5 rounded-full overflow-hidden">
+                    <div class="bg-emerald-500 h-full" style="width: ${share}%"></div>
+                  </div>
+                  <span class="text-[11px] font-mono text-zinc-400 w-9 text-right">${share}%</span>
+                </div>
+              </td>
+            </tr>
+          `;
+        }).join('');
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    async function inspectUser(userId, username) {
+      try {
+        document.getElementById('userModal').classList.remove('hidden');
+        document.getElementById('modalUserName').innerText = `${username || 'User'} (#${userId})`;
+        document.getElementById('modalUserSub').innerText = 'Loading user records from Remnawave...';
+        document.getElementById('modalDeviceCount').innerText = '...';
+        document.getElementById('modalSrhCount').innerText = '...';
+        document.getElementById('modalUserDevices').innerHTML = `
+          <div class="p-3 bg-zinc-950/60 border border-zinc-800 rounded-lg animate-pulse space-y-2">
+            <div class="h-4 w-48 bg-zinc-800 rounded"></div>
+            <div class="h-3 w-64 bg-zinc-800/60 rounded"></div>
+          </div>
+        `;
+        document.getElementById('modalUserSrh').innerHTML = Array.from({ length: 3 }).map(() => `
+          <tr class="animate-pulse">
+            <td class="px-3 py-2"><div class="h-3 w-20 bg-zinc-800 rounded"></div></td>
+            <td class="px-3 py-2"><div class="h-3 w-24 bg-zinc-800 rounded"></div></td>
+            <td class="px-3 py-2"><div class="h-3 w-16 bg-zinc-800 rounded"></div></td>
+            <td class="px-3 py-2"><div class="h-3 w-16 bg-zinc-800 rounded"></div></td>
+            <td class="px-3 py-2"><div class="h-3 w-28 bg-zinc-800 rounded"></div></td>
+          </tr>
+        `).join('');
+
+        const res = await fetch(`/api/user/${userId}?hours=${currentHours}`);
+        const data = await res.json();
+
+        document.getElementById('modalUserName').innerText = `${username} (User #${userId})`;
+        document.getElementById('modalUserSub').innerText = `Status: ${data.user.status} · Filter: Past ${currentHours} Hours`;
+
+        // Render HWID Devices
+        const devContainer = document.getElementById('modalUserDevices');
+        const devCountEl = document.getElementById('modalDeviceCount');
+        const devices = data.devices || [];
+        devCountEl.innerText = `${devices.length} bound device${devices.length === 1 ? '' : 's'}`;
+
+        if (devices.length === 0) {
+          devContainer.innerHTML = '<div class="p-3 bg-zinc-950/40 border border-zinc-800/60 rounded-lg text-xs text-zinc-500">No hardware devices bound to this account.</div>';
+        } else {
+          devContainer.innerHTML = devices.map(d => `
+            <div class="p-3 bg-zinc-950/60 border border-zinc-800 rounded-lg flex flex-wrap items-center justify-between gap-3 text-xs">
+              <div class="space-y-1">
+                <div class="flex items-center gap-2">
+                  <span class="px-2 py-0.5 rounded text-[11px] bg-indigo-500/10 text-indigo-300 border border-indigo-500/20 font-medium">${d.platform || 'Device'}</span>
+                  <span class="font-medium text-white">${d.deviceModel || 'Unknown Model'}</span>
+                  <span class="text-zinc-500 font-mono">${d.osVersion ? 'v' + d.osVersion : ''}</span>
+                </div>
+                <div class="text-zinc-400 font-mono text-[11px]">App: ${d.userAgent || '-'}</div>
+                <div class="text-[11px] text-zinc-500 font-mono">HWID: <span class="text-zinc-400">${d.hwid || '-'}</span></div>
+              </div>
+              <div class="text-right font-mono text-[11px] text-zinc-400">
+                <div>${toTehranTime(d.updatedAt || d.createdAt)}</div>
+                <div class="text-zinc-500 mt-0.5">IP: ${d.requestIp || '-'}</div>
+              </div>
+            </div>
+          `).join('');
+        }
+
+        // Render SRH Records
+        const srhTbody = document.getElementById('modalUserSrh');
+        const srhCountEl = document.getElementById('modalSrhCount');
+        const srhRecords = data.srh || [];
+        srhCountEl.innerText = `${srhRecords.length} recorded request${srhRecords.length === 1 ? '' : 's'}`;
+
+        if (srhRecords.length === 0) {
+          srhTbody.innerHTML = '<tr><td colspan="5" class="px-3 py-4 text-center text-zinc-500">No subscription request history recorded.</td></tr>';
+        } else {
+          srhTbody.innerHTML = srhRecords.slice(0, 15).map(r => `
+            <tr class="hover:bg-zinc-800/30 transition text-[11px]">
+              <td class="px-3 py-2 text-zinc-400 whitespace-nowrap">${toTehranTime(r.requestAt)}</td>
+              <td class="px-3 py-2 text-zinc-300 font-mono">${r.requestIp || '-'}</td>
+              <td class="px-3 py-2 text-white">${r.clientApp || (r.userAgent ? r.userAgent.split('/')[0] : 'Generic')}</td>
+              <td class="px-3 py-2 text-zinc-400">${r.srrResponseType || r.srrRuleName || 'Base64'}</td>
+              <td class="px-3 py-2 text-zinc-500 truncate max-w-xs" title="${r.userAgent || ''}">${r.userAgent || '-'}</td>
+            </tr>
+          `).join('');
+        }
+
+        // Top Domains Visited
+        const domainsTbody = document.getElementById('modalUserDomains');
+        if (data.top_domains.length === 0) {
+          domainsTbody.innerHTML = '<tr><td colspan="3" class="px-3 py-4 text-center text-zinc-500">No destinations in range.</td></tr>';
+        } else {
+          domainsTbody.innerHTML = data.top_domains.map(d => `
+            <tr>
+              <td class="px-3 py-2 font-medium text-zinc-200">${d.root_domain}</td>
+              <td class="px-3 py-2">${getCategoryBadge(d.category)}</td>
+              <td class="px-3 py-2 text-right font-mono text-zinc-300">${Number(d.hits).toLocaleString()}</td>
+            </tr>
+          `).join('');
+        }
+
+        // Recent Connection Logs with Tehran time and Route Pathway
+        const recentTbody = document.getElementById('modalUserRecent');
+        if (data.recent_connections.length === 0) {
+          recentTbody.innerHTML = '<tr><td colspan="3" class="px-3 py-4 text-center text-zinc-500">No connection logs.</td></tr>';
+        } else {
+          recentTbody.innerHTML = data.recent_connections.map(c => `
+            <tr class="text-[11px]">
+              <td class="px-3 py-1.5 text-zinc-400 whitespace-nowrap">${toTehranTime(c.ts)}</td>
+              <td class="px-3 py-1.5 text-indigo-300 font-medium truncate max-w-xs">${c.dest}:${c.port}</td>
+              <td class="px-3 py-1.5">${formatRoutePathway(c.inbound, c.outbound)}</td>
+            </tr>
+          `).join('');
+        }
+
+        document.getElementById('userModal').classList.remove('hidden');
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    async function inspectDomain(domain) {
+      try {
+        const res = await fetch(`/api/domain/${encodeURIComponent(domain)}?hours=${currentHours}`);
+        const data = await res.json();
+
+        document.getElementById('modalDomainName').innerText = domain;
+        const tbody = document.getElementById('modalDomainUsers');
+        if (data.top_users.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="3" class="px-4 py-4 text-center text-zinc-500">No user visits recorded.</td></tr>';
+        } else {
+          tbody.innerHTML = data.top_users.map(u => `
+            <tr>
+              <td class="px-4 py-2 font-medium text-zinc-200">${u.username} <span class="text-zinc-500 font-mono">(#${u.user_id})</span></td>
+              <td class="px-4 py-2 text-right font-mono text-zinc-300">${Number(u.hits).toLocaleString()}</td>
+              <td class="px-4 py-2 text-zinc-400">${u.last_seen || '-'}</td>
+            </tr>
+          `).join('');
+        }
+
+        document.getElementById('domainModal').classList.remove('hidden');
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    function closeModal(modalId) {
+      document.getElementById(modalId).classList.add('hidden');
+    }
+
+    function debounceLoadDomains() {
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(loadDestinations, 300);
+    }
+
+    function debounceLoadUsers() {
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(loadUsers, 300);
+    }
+
+    // THREE-TIER ROUTE PATHWAY HELPER (TUNNEL -> BRIDGE -> OUTBOUND)
+    function formatRoutePathway(inbound, outbound, r) {
+      if (!inbound) return '-';
+      const isTunneled = !r?.is_direct && r?.ingress_type === 'TUNNEL';
+      const tunnelTag = isTunneled ? `${inbound}-loop` : null;
+
+      const tunnelHtml = tunnelTag
+        ? `<span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-mono bg-amber-500/15 text-amber-400 border border-amber-500/25" title="Tunnel Ingress">${r.ingress_node || 'IR1'}: ${tunnelTag}</span>`
+        : `<span class="text-zinc-500 text-[10px] font-mono">Direct</span>`;
+
+      const bridgeHtml = `<span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-mono bg-indigo-500/15 text-indigo-300 border border-indigo-500/25" title="Bridge Inbound">${r?.ingress_node && r?.is_direct ? r.ingress_node : 'DE1'}: ${inbound}</span>`;
+
+      const outStr = outbound || 'direct';
+      const isOutboundNode = r?.involved_nodes && r.involved_nodes.some(n => n.role === 'OUTBOUND');
+      const outLabel = isOutboundNode ? `${r.involved_nodes.find(n => n.role === 'OUTBOUND').shortName} (${outStr})` : outStr;
+      const outHtml = `<span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-mono ${isOutboundNode ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/25' : 'bg-zinc-800 text-zinc-300'}" title="Outbound Egress">${outLabel}</span>`;
+
+      return `<div class="inline-flex items-center gap-1.5 whitespace-nowrap">${tunnelHtml} <span class="text-zinc-600 text-[10px]">→</span> ${bridgeHtml} <span class="text-zinc-600 text-[10px]">→</span> ${outHtml}</div>`;
+    }
+
+    function renderInvolvedNodes(r) {
+      if (r.involved_nodes && r.involved_nodes.length > 0) {
+        return r.involved_nodes.map(n => {
+          const col = n.role === 'TUNNEL' 
+            ? 'bg-amber-500/15 text-amber-400 border-amber-500/25' 
+            : (n.role === 'BRIDGE' ? 'bg-indigo-500/15 text-indigo-300 border-indigo-500/25' : 'bg-emerald-500/15 text-emerald-400 border-emerald-500/25');
+          return `<span class="px-1.5 py-0.5 rounded text-[10px] font-mono border ${col}" title="${n.name}">${n.shortName}</span>`;
+        }).join('<span class="text-zinc-600 text-[10px] mx-1">→</span>');
+      }
+      return `<span class="text-zinc-400 font-mono text-[10px]">${r.node_path || r.node || 'DE1'}</span>`;
+    }
+
+    // TEHRAN TIMEZONE HELPERS
+    function toTehranTime(str) {
+      if (!str) return '-';
+      try {
+        let s = String(str).trim();
+        if (!s.includes('T') && s.includes(' ')) s = s.replace(' ', 'T') + 'Z';
+        else if (!s.endsWith('Z') && !s.includes('+')) s += 'Z';
+        const d = new Date(s);
+        if (isNaN(d.getTime())) return str;
+        return new Intl.DateTimeFormat('en-GB', {
+          timeZone: 'Asia/Tehran',
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit',
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit',
+          hour12: false
+        }).format(d).replace(',', '');
+      } catch {
+        return str;
+      }
+    }
+
+    function startTehranClock() {
+      function update() {
+        const now = new Date();
+        const timeStr = new Intl.DateTimeFormat('en-GB', {
+          timeZone: 'Asia/Tehran',
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit',
+          hour12: false
+        }).format(now);
+        const clockEl = document.getElementById('tehranClock');
+        if (clockEl) clockEl.innerText = `Tehran: ${timeStr}`;
+      }
+      update();
+      setInterval(update, 1000);
+    }
+
+    // 1. HWID DEVICES
+    let cachedHwidDevices = [];
+    async function loadHwid() {
+      try {
+        const tbody = document.getElementById('hwidTableBody');
+        tbody.innerHTML = Array.from({ length: 6 }).map(() => `
+          <tr class="animate-pulse border-b border-zinc-800/40">
+            <td class="px-4 py-3"><div class="h-4 w-28 bg-zinc-800 rounded"></div></td>
+            <td class="px-4 py-3"><div class="h-4 w-16 bg-zinc-800 rounded"></div></td>
+            <td class="px-4 py-3"><div class="h-4 w-20 bg-zinc-800 rounded"></div></td>
+            <td class="px-4 py-3"><div class="h-4 w-16 bg-zinc-800 rounded"></div></td>
+            <td class="px-4 py-3"><div class="h-4 w-24 bg-zinc-800 rounded"></div></td>
+            <td class="px-4 py-3"><div class="h-4 w-20 bg-zinc-800 rounded"></div></td>
+            <td class="px-4 py-3 text-right"><div class="h-4 w-24 bg-zinc-800 rounded ml-auto"></div></td>
+          </tr>
+        `).join('');
+
+        document.getElementById('hwidPlatformPills').innerHTML = `
+          <div class="flex gap-2 animate-pulse">
+            <div class="h-6 w-20 bg-zinc-800 rounded"></div>
+            <div class="h-6 w-24 bg-zinc-800 rounded"></div>
+          </div>
+        `;
+        document.getElementById('hwidAppPills').innerHTML = `
+          <div class="flex gap-2 animate-pulse">
+            <div class="h-6 w-20 bg-zinc-800 rounded"></div>
+            <div class="h-6 w-24 bg-zinc-800 rounded"></div>
+          </div>
+        `;
+
+        const res = await fetch('/api/remna/hwid');
+        const data = await res.json();
+        cachedHwidDevices = data.devices || [];
+
+        document.getElementById('hwidTotalDevices').innerText = Number(data.total || cachedHwidDevices.length).toLocaleString();
+
+        const platformPills = document.getElementById('hwidPlatformPills');
+        const platforms = data.stats?.byPlatform || [];
+        if (platforms.length > 0) {
+          platformPills.innerHTML = platforms.map(p => `
+            <span class="px-2 py-0.5 rounded bg-zinc-800 text-zinc-300 font-medium">
+              ${p.platform || 'Unknown'}: <span class="text-white">${p.count}</span>
+            </span>
+          `).join('');
+        } else {
+          platformPills.innerHTML = '<span class="text-zinc-500">None detected</span>';
+        }
+
+        const appPills = document.getElementById('hwidAppPills');
+        const allApps = [];
+        for (const p of platforms) {
+          for (const a of (p.byApp || [])) {
+            allApps.push(a);
+          }
+        }
+        allApps.sort((a, b) => b.count - a.count);
+        if (allApps.length > 0) {
+          appPills.innerHTML = allApps.slice(0, 5).map(a => `
+            <span class="px-2 py-0.5 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20 font-medium">
+              ${a.app}: <span class="text-white">${a.count}</span>
+            </span>
+          `).join('');
+        } else {
+          appPills.innerHTML = '<span class="text-zinc-500">None detected</span>';
+        }
+
+        renderHwidTable(cachedHwidDevices);
+      } catch (e) {
+        console.error('HWID load error:', e);
+      }
+    }
+
+    function renderHwidTable(devices) {
+      const tbody = document.getElementById('hwidTableBody');
+      if (!devices || devices.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" class="px-4 py-8 text-center text-zinc-500">No HWID devices matching filter.</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = devices.map(d => `
+        <tr class="hover:bg-zinc-800/30 transition">
+          <td class="px-4 py-3 font-medium text-white">
+            ${d.user ? d.user.username : 'User #' + d.userId}
+            <span class="text-zinc-500 font-mono text-[11px]">(#${d.userId})</span>
+          </td>
+          <td class="px-4 py-3">
+            <span class="px-2 py-0.5 rounded text-[11px] bg-indigo-500/10 text-indigo-300 border border-indigo-500/20 font-medium">
+              ${d.platform || 'Other'}
+            </span>
+          </td>
+          <td class="px-4 py-3 font-mono text-zinc-300">${d.deviceModel || '-'}</td>
+          <td class="px-4 py-3 font-mono text-zinc-400">${d.osVersion || '-'}</td>
+          <td class="px-4 py-3 text-zinc-300 truncate max-w-xs" title="${d.userAgent || ''}">
+            ${d.userAgent ? d.userAgent.split(' ')[0] : '-'}
+          </td>
+          <td class="px-4 py-3 font-mono text-[11px] text-zinc-500" title="${d.hwid}">
+            ${d.hwid ? d.hwid.slice(0, 12) + '...' : '-'}
+          </td>
+          <td class="px-4 py-3 text-right font-mono text-zinc-400">
+            ${toTehranTime(d.updatedAt || d.createdAt)}
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    function filterHwidTable() {
+      const q = document.getElementById('hwidSearch').value.toLowerCase().trim();
+      if (!q) {
+        renderHwidTable(cachedHwidDevices);
+        return;
+      }
+      const filtered = cachedHwidDevices.filter(d => {
+        const u = d.user?.username?.toLowerCase() || '';
+        const p = d.platform?.toLowerCase() || '';
+        const m = d.deviceModel?.toLowerCase() || '';
+        const a = d.userAgent?.toLowerCase() || '';
+        const id = String(d.userId);
+        return u.includes(q) || p.includes(q) || m.includes(q) || a.includes(q) || id.includes(q);
+      });
+      renderHwidTable(filtered);
+    }
+
+    // 2. SUBSCRIPTION HISTORY (SRH)
+    let cachedSrhRecords = [];
+    async function loadSrh() {
+      try {
+        const tbody = document.getElementById('srhTableBody');
+        tbody.innerHTML = Array.from({ length: 6 }).map(() => `
+          <tr class="animate-pulse border-b border-zinc-800/40">
+            <td class="px-4 py-3"><div class="h-4 w-24 bg-zinc-800 rounded"></div></td>
+            <td class="px-4 py-3"><div class="h-4 w-28 bg-zinc-800 rounded"></div></td>
+            <td class="px-4 py-3"><div class="h-4 w-24 bg-zinc-800 rounded"></div></td>
+            <td class="px-4 py-3"><div class="h-4 w-20 bg-zinc-800 rounded"></div></td>
+            <td class="px-4 py-3"><div class="h-4 w-16 bg-zinc-800 rounded"></div></td>
+            <td class="px-4 py-3"><div class="h-4 w-36 bg-zinc-800 rounded"></div></td>
+          </tr>
+        `).join('');
+
+        document.getElementById('srhAppPills').innerHTML = `
+          <div class="flex gap-2 animate-pulse">
+            <div class="h-6 w-24 bg-zinc-800 rounded"></div>
+            <div class="h-6 w-28 bg-zinc-800 rounded"></div>
+            <div class="h-6 w-20 bg-zinc-800 rounded"></div>
+          </div>
+        `;
+
+        const res = await fetch('/api/remna/srh');
+        const data = await res.json();
+        cachedSrhRecords = data.records || [];
+
+        document.getElementById('srhTotalPulls').innerText = Number(data.total || cachedSrhRecords.length).toLocaleString();
+
+        const appPills = document.getElementById('srhAppPills');
+        const apps = data.stats?.byParsedApp || [];
+        if (apps.length > 0) {
+          appPills.innerHTML = apps.slice(0, 6).map(a => `
+            <span class="px-2.5 py-1 rounded bg-zinc-800 text-zinc-300 font-medium">
+              ${a.app}: <span class="text-emerald-400 font-bold">${a.count}</span>
+            </span>
+          `).join('');
+        } else {
+          appPills.innerHTML = '<span class="text-zinc-500">None detected</span>';
+        }
+
+        renderSrhTable(cachedSrhRecords);
+      } catch (e) {
+        console.error('SRH load error:', e);
+      }
+    }
+
+    function renderSrhTable(records) {
+      const tbody = document.getElementById('srhTableBody');
+      if (!records || records.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" class="px-4 py-8 text-center text-zinc-500 font-sans text-xs">No subscription requests matching filter.</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = records.map(r => `
+        <tr class="hover:bg-zinc-800/30 transition">
+          <td class="px-4 py-2.5 text-zinc-400 whitespace-nowrap">${toTehranTime(r.requestAt)}</td>
+          <td class="px-4 py-2.5 font-sans font-medium text-white">
+            ${r.user ? r.user.username : 'User #' + r.userId}
+            <span class="text-zinc-500 font-mono text-[10px]">(#${r.userId})</span>
+          </td>
+          <td class="px-4 py-2.5 text-zinc-300">${r.requestIp || '-'}</td>
+          <td class="px-4 py-2.5">
+            <span class="px-1.5 py-0.5 rounded text-[10px] bg-zinc-800 text-zinc-300">
+              ${r.clientApp || (r.userAgent ? r.userAgent.split('/')[0] : 'Generic')}
+            </span>
+          </td>
+          <td class="px-4 py-2.5 text-zinc-400 font-sans text-[11px]">${r.srrResponseType || r.srrRuleName || 'Base64'}</td>
+          <td class="px-4 py-2.5 text-zinc-500 truncate max-w-xs font-sans text-[11px]" title="${r.userAgent || ''}">
+            ${r.userAgent || '-'}
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    function filterSrhTable() {
+      const q = document.getElementById('srhSearch').value.toLowerCase().trim();
+      if (!q) {
+        renderSrhTable(cachedSrhRecords);
+        return;
+      }
+      const filtered = cachedSrhRecords.filter(r => {
+        const u = r.user?.username?.toLowerCase() || '';
+        const ip = r.requestIp?.toLowerCase() || '';
+        const a = r.userAgent?.toLowerCase() || '';
+        const app = r.clientApp?.toLowerCase() || '';
+        const id = String(r.userId);
+        return u.includes(q) || ip.includes(q) || a.includes(q) || app.includes(q) || id.includes(q);
+      });
+      renderSrhTable(filtered);
+    }
+
+    // 3. NODES & TOPOLOGY
+    async function loadSessions() {
+      try {
+        const container = document.getElementById('sessionsNodesGrid');
+        container.innerHTML = `
+          <div class="col-span-full grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+            ${[1, 2, 3].map(() => `
+              <div class="bg-zinc-900/60 border border-zinc-800/80 rounded-xl p-5 space-y-4 animate-pulse">
+                <div class="flex items-center justify-between">
+                  <div class="flex items-center gap-3">
+                    <div class="w-8 h-8 rounded-full bg-zinc-800"></div>
+                    <div class="space-y-1.5">
+                      <div class="h-4 w-28 bg-zinc-800 rounded"></div>
+                      <div class="h-3 w-36 bg-zinc-800/60 rounded"></div>
+                    </div>
+                  </div>
+                  <div class="h-6 w-20 bg-zinc-800 rounded-full"></div>
+                </div>
+                <div class="h-12 w-full bg-zinc-800/50 rounded-lg"></div>
+                <div class="grid grid-cols-3 gap-2 pt-2 border-t border-zinc-800/60">
+                  <div class="h-14 bg-zinc-800/40 rounded-lg"></div>
+                  <div class="h-14 bg-zinc-800/40 rounded-lg"></div>
+                  <div class="h-14 bg-zinc-800/40 rounded-lg"></div>
+                </div>
+                <div class="h-24 bg-zinc-800/30 rounded-lg"></div>
+              </div>
+            `).join('')}
+          </div>
+        `;
+
+        const res = await fetch('/api/remna/sessions');
+        const data = await res.json();
+        const nodes = data.nodes || [];
+
+        if (nodes.length === 0) {
+          container.innerHTML = '<div class="col-span-2 p-8 text-center text-zinc-500">No active exit nodes reporting metrics.</div>';
+          return;
+        }
+
+        container.innerHTML = nodes.map(n => {
+          const sys = n.system || {};
+          const stats = sys.stats || {};
+          const memTotal = sys.info?.memoryTotal || 1;
+          const memUsed = stats.memoryUsed || 0;
+          const memPercent = Math.min(100, Math.round((memUsed / memTotal) * 100));
+          const loadAvg = stats.loadAvg ? stats.loadAvg.map(l => l.toFixed(2)).join(', ') : '-';
+          const iface = stats.interface || {};
+          const rxRate = iface.rxBytesPerSec ? (iface.rxBytesPerSec / 1024 / 1024).toFixed(2) + ' MB/s' : '-';
+          const txRate = iface.txBytesPerSec ? (iface.txBytesPerSec / 1024 / 1024).toFixed(2) + ' MB/s' : '-';
+
+          const inboundsList = (n.inboundsStats || []).slice(0, 8).map(ib => `
+            <div class="flex items-center justify-between text-[11px] py-1 border-b border-zinc-800/40">
+              <span class="font-mono text-zinc-300 truncate max-w-[140px]">${ib.tag}</span>
+              <span class="font-mono text-zinc-400">↑ ${ib.upload || '0 B'} · ↓ ${ib.download || '0 B'}</span>
+            </div>
+          `).join('');
+
+          const roleBadge = n.role === 'TUNNEL'
+            ? `<span class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">TUNNEL</span>`
+            : (n.role === 'BRIDGE'
+                ? `<span class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">BRIDGE</span>`
+                : `<span class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">OUTBOUND</span>`);
+
+          const ruleCard = `
+            <div class="p-2.5 rounded-lg border text-xs flex items-start gap-2 ${n.role === 'TUNNEL' ? 'bg-amber-500/10 border-amber-500/20 text-amber-300' : (n.role === 'BRIDGE' ? 'bg-indigo-500/10 border-indigo-500/20 text-indigo-300' : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-300')}">
+              <div class="font-bold uppercase tracking-wider text-[10px] shrink-0 mt-0.5">Role Rule:</div>
+              <div class="text-[11px] leading-relaxed font-sans">${n.rule}</div>
+            </div>
+          `;
+
+          const agent = n.agent || {};
+          const isTracked = agent.is_tracked && agent.status === 'ACTIVE';
+          const agentBox = `
+            <div class="p-3 rounded-lg border bg-zinc-950/70 border-zinc-800/80 flex items-center justify-between">
+              <div class="flex items-center gap-2.5">
+                <span class="w-2.5 h-2.5 rounded-full ${isTracked ? 'bg-emerald-400 animate-pulse' : 'bg-zinc-600'}"></span>
+                <div>
+                  <div class="text-xs font-mono font-semibold text-zinc-200 flex items-center gap-1.5">
+                    <span>xray-monitor-node</span>
+                    ${isTracked ? `<span class="px-1.5 py-0.2 rounded text-[9px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">${agent.role}</span>` : ''}
+                  </div>
+                  <div class="text-[10px] text-zinc-500 font-sans mt-0.5">
+                    ${isTracked ? `${Number(agent.total_connections || 0).toLocaleString()} events streamed · ${agent.total_batches || 0} batches` : 'No telemetry agent reporting'}
+                  </div>
+                </div>
+              </div>
+              <div class="text-right">
+                ${isTracked
+                  ? `<span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-mono font-medium bg-emerald-500/15 text-emerald-300 border border-emerald-500/25">Live (${agent.last_seen_seconds_ago}s ago)</span>`
+                  : `<span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-mono text-zinc-500 bg-zinc-900 border border-zinc-800">Unmonitored</span>`
+                }
+              </div>
+            </div>
+          `;
+
+          return `
+            <div class="bg-zinc-900/60 border border-zinc-800/80 rounded-xl p-5 space-y-4 flex flex-col justify-between">
+              <div class="space-y-3">
+                <div class="flex items-start justify-between gap-2">
+                  <div class="flex items-center gap-2.5">
+                    <span class="text-2xl">${n.countryEmoji || '🌐'}</span>
+                    <div>
+                      <div class="flex items-center gap-2">
+                        <h4 class="text-base font-semibold text-white">${n.nodeName}</h4>
+                        ${roleBadge}
+                      </div>
+                      <p class="text-xs text-zinc-500 font-mono mt-0.5">${n.address || '-'} · ${n.providerName || 'Provider'}</p>
+                    </div>
+                  </div>
+                  <div class="flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-medium shrink-0">
+                    <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                    <span>${n.usersOnline || 0} Online</span>
+                  </div>
+                </div>
+
+                <!-- Architectural Rule Banner -->
+                ${ruleCard}
+
+                <!-- Telemetry Agent Box -->
+                ${agentBox}
+              </div>
+
+              <!-- Node Health Metrics -->
+              <div class="grid grid-cols-3 gap-2 pt-2 border-t border-zinc-800/60 text-xs">
+                <div class="bg-zinc-950/60 p-2.5 rounded-lg border border-zinc-800/60">
+                  <span class="text-zinc-500 text-[11px]">CPU Cores</span>
+                  <div class="font-bold text-white mt-0.5">${sys.info?.cpus || 1} Cores</div>
+                  <div class="text-[10px] text-zinc-500 font-mono mt-0.5">Load: ${loadAvg}</div>
+                </div>
+                <div class="bg-zinc-950/60 p-2.5 rounded-lg border border-zinc-800/60">
+                  <span class="text-zinc-500 text-[11px]">Memory Usage</span>
+                  <div class="font-bold text-white mt-0.5">${memPercent}%</div>
+                  <div class="w-full bg-zinc-800 h-1 rounded-full mt-1.5 overflow-hidden">
+                    <div class="bg-indigo-500 h-full" style="width: ${memPercent}%"></div>
+                  </div>
+                </div>
+                <div class="bg-zinc-950/60 p-2.5 rounded-lg border border-zinc-800/60">
+                  <span class="text-zinc-500 text-[11px]">Interface Rate</span>
+                  <div class="font-bold font-mono text-emerald-400 text-[11px] mt-0.5">↓ ${rxRate}</div>
+                  <div class="font-mono text-zinc-400 text-[10px] mt-0.5">↑ ${txRate}</div>
+                </div>
+              </div>
+
+              <!-- Inbounds Throughput on Node -->
+              <div>
+                <h5 class="text-xs font-semibold text-zinc-400 mb-2 flex items-center justify-between">
+                  <span>${n.role === 'TUNNEL' ? 'Tunnel Inbounds' : (n.role === 'BRIDGE' ? 'Bridge Inbounds' : 'Exit Inbounds')}</span>
+                  <span class="text-[10px] font-mono text-zinc-500">${(n.inboundsStats || []).length} registered</span>
+                </h5>
+                <div class="bg-zinc-950/40 rounded-lg p-2.5 border border-zinc-800/50 max-h-48 overflow-y-auto custom-scrollbar">
+                  ${inboundsList || '<div class="text-xs text-zinc-500 py-2 text-center">No inbound activity recorded.</div>'}
+                </div>
+              </div>
+            </div>
+          `;
+        }).join('');
+      } catch (e) {
+        console.error('Sessions load error:', e);
+      }
+    }
+
+    // 4. BANDWIDTH STATS & DAILY/MONTHLY/YEARLY TRENDS (SKIPPING IRAN)
+    let currentBwRange = '7d';
+    function changeBwRange(range) {
+      currentBwRange = range;
+      document.querySelectorAll('.bw-range-btn').forEach(b => {
+        b.className = "bw-range-btn px-2.5 py-1 rounded-md text-zinc-400 hover:text-zinc-200 transition";
+      });
+      const activeBtn = document.getElementById('bwBtn-' + range);
+      if (activeBtn) {
+        activeBtn.className = "bw-range-btn px-2.5 py-1 rounded-md text-white bg-brand-600 font-medium transition";
+      }
+      loadBandwidth();
+    }
+
+    let nodeBandwidthChartInstance = null;
+    async function loadBandwidth() {
+      try {
+        ['bwTwoDays', 'bwSevenDays', 'bwThisMonth', 'bwAllTime'].forEach(id => {
+          const el = document.getElementById(id);
+          if (el) el.innerHTML = '<div class="h-8 w-24 bg-zinc-800 rounded animate-pulse"></div>';
+        });
+
+        const res = await fetch(`/api/remna/bandwidth?range=${currentBwRange}`);
+        const data = await res.json();
+
+        const bw = data.bandwidth || {};
+        document.getElementById('bwTwoDays').innerText = bw.bandwidthLastTwoDays?.current || '-';
+        document.getElementById('bwTwoDaysDiff').innerText = bw.bandwidthLastTwoDays?.difference ? `Diff: ${bw.bandwidthLastTwoDays.difference}` : '';
+
+        document.getElementById('bwSevenDays').innerText = bw.bandwidthLastSevenDays?.current || '-';
+        document.getElementById('bwSevenDaysDiff').innerText = bw.bandwidthLastSevenDays?.difference ? `Diff: ${bw.bandwidthLastSevenDays.difference}` : '';
+
+        const thisMonthBytes = data.recap?.thisMonth?.traffic ? parseInt(data.recap.thisMonth.traffic, 10) : 0;
+        const totalTrafficBytes = data.recap?.total?.traffic ? parseInt(data.recap.total.traffic, 10) : 0;
+
+        document.getElementById('bwThisMonth').innerText = thisMonthBytes > 0 ? (thisMonthBytes / 1024 / 1024 / 1024).toFixed(1) + ' GiB' : '-';
+        document.getElementById('bwAllTime').innerText = totalTrafficBytes > 0 ? (totalTrafficBytes / 1024 / 1024 / 1024 / 1024).toFixed(2) + ' TiB' : '-';
+        document.getElementById('bwAllTimeSub').innerText = `${data.recap?.total?.users || 0} users across genuine exit nodes`;
+
+        // Render Node Daily / Monthly / Yearly Bandwidth Chart
+        const categories = (data.categories || []).map(c => {
+          const parts = c.split('-');
+          return parts.length === 3 ? `${parts[1]}/${parts[2]}` : c;
+        });
+
+        const palette = ['#10b981', '#6366f1', '#f59e0b', '#ec4899'];
+        let colorIdx = 0;
+
+        const datasets = (data.series || []).map(s => {
+          const col = palette[colorIdx++ % palette.length];
+          const dataInGb = (s.data || []).map(b => Number(((b || 0) / 1024 / 1024 / 1024).toFixed(2)));
+          return {
+            label: s.name,
+            data: dataInGb,
+            backgroundColor: col,
+            borderRadius: (data.days || 7) > 90 ? 1 : 3,
+            maxBarThickness: (data.days || 7) > 90 ? 4 : 22,
+          };
+        });
+
+        const ctx = document.getElementById('nodeBandwidthChart').getContext('2d');
+        if (nodeBandwidthChartInstance) nodeBandwidthChartInstance.destroy();
+
+        nodeBandwidthChartInstance = new Chart(ctx, {
+          type: 'bar',
+          data: { labels: categories, datasets },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: { mode: 'index', intersect: false },
+            plugins: {
+              legend: { labels: { color: '#a1a1aa', font: { size: 11 } } },
+              tooltip: {
+                callbacks: {
+                  label: (c) => ` ${c.dataset.label}: ${c.raw} GiB`
+                }
+              }
+            },
+            scales: {
+              x: {
+                grid: { display: false },
+                ticks: {
+                  color: '#71717a',
+                  maxTicksLimit: (data.days || 7) > 90 ? 12 : ((data.days || 7) > 30 ? 15 : 7)
+                }
+              },
+              y: {
+                grid: { color: 'rgba(39, 39, 42, 0.5)' },
+                ticks: { color: '#71717a', callback: (v) => v + ' GiB' }
+              }
+            }
+          }
+        });
+      } catch (e) {
+        console.error('Bandwidth load error:', e);
+      }
+    }
+
+    function loadAllData() {
+      loadSummary();
+      const activeTab = document.querySelector('.tab-content:not(.hidden)').id;
+      if (activeTab === 'content-destinations') loadDestinations();
+      if (activeTab === 'content-users') loadUsers();
+      if (activeTab === 'content-live') loadLiveStream();
+      if (activeTab === 'content-inbounds') loadInbounds();
+      if (activeTab === 'content-hwid') loadHwid();
+      if (activeTab === 'content-srh') loadSrh();
+      if (activeTab === 'content-sessions') loadSessions();
+      if (activeTab === 'content-bandwidth') loadBandwidth();
+    }
+
+    // Startup
+    document.addEventListener('DOMContentLoaded', () => {
+      startTehranClock();
+      loadUsersDropdown();
+      loadAllData();
+      startAutoRefresh();
+    });
+  </script>
+</body>
+</html>
