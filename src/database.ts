@@ -272,7 +272,11 @@ export function cleanupOldData(rawHours: number = 48, rollupDays: number = 60) {
 
 function getTimeFilter(hours: number): string {
   if (hours <= 0) return "1970-01-01 00:00:00";
-  return new Date(Date.now() - hours * 3600 * 1000).toISOString().replace("T", " ").slice(0, 19);
+  const cutoffMs = Date.now() - hours * 3600 * 1000;
+  const d = new Date(cutoffMs);
+  // Floor to the start of the hour so the current/recent hour bucket is included
+  d.setMinutes(0, 0, 0);
+  return d.toISOString().replace("T", " ").slice(0, 19);
 }
 
 // Query Helpers
