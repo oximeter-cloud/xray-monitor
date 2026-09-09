@@ -203,6 +203,8 @@ export class XrayCollector {
   private isRunning: boolean = true;
   private localNodeName: string = "BRIDGE";
   private knownNodes: RemnaNode[] = [];
+  private recentKeys = new Set<string>();
+  private recentKeysQueue: string[] = [];
   private agents = new Map<
     string,
     {
@@ -310,6 +312,17 @@ export class XrayCollector {
 
     const port = parseInt(portStr, 10);
     const tsFormatted = rawTs.replaceAll("/", "-").split(".")[0] || "";
+
+    // Exact connection deduplication: prevents replaying rotated log lines
+    const dedupKey = `${tsFormatted}|${userId}|${dest}|${port}|${inbound}|${targetNode}`;
+    if (this.recentKeys.has(dedupKey)) return;
+    this.recentKeys.add(dedupKey);
+    this.recentKeysQueue.push(dedupKey);
+    if (this.recentKeysQueue.length > 50000) {
+      const old = this.recentKeysQueue.shift();
+      if (old) this.recentKeys.delete(old);
+    }
+
     const [rootDomain, category] = classifyDestination(dest);
 
     this.buffer.push({
@@ -339,33 +352,21 @@ export class XrayCollector {
       const userId = parseInt(item.email, 10);
       if (isNaN(userId) || EXCLUDED_USER_IDS.has(userId)) continue;
 
-      const outboundLower = (item.outbound || "").toLowerCase();
-
-      // Deduplication:
-      // Transit packets: If report is from a TUNNEL node and outbound forwards to a BRIDGE node
-      // (e.g. bridge-*-out or contains "bridge"), skip it! The bridge exit node will record
-      // the complete connection with final destination, actual egress outbound (warp/direct), and resolved multi-hop path.
-      if (
-        role === "TUNNEL" &&
-        (outboundLower.startsWith("bridge-") ||
-          outboundLower.includes("bridge") ||
-          outboundLower === "bridge-out")
-      ) {
-        continue;
-      }
-
-      // If report is from BRIDGE and client_ip is from a known TUNNEL (direct TCP):
-      if (role === "BRIDGE" && item.client_ip) {
-        const cleanClientIp = String(item.client_ip).replace(/^tcp:/, "").split(":")[0];
-        if (cleanClientIp && this.tunnelIps.has(cleanClientIp)) {
-          continue;
-        }
-      }
-
       const port = parseInt(item.port, 10);
       const tsFormatted = (item.ts || "").replaceAll("/", "-").split(".")[0];
-      const [rootDomain, category] = classifyDestination(item.dest);
       const cleanInbound = item.inbound || (role === "TUNNEL" ? "in-default-loop" : "in-default");
+
+      // Exact connection deduplication: prevents replaying rotated log lines or duplicate batches
+      const dedupKey = `${tsFormatted}|${userId}|${item.dest}|${port}|${cleanInbound}|${nodeName}`;
+      if (this.recentKeys.has(dedupKey)) continue;
+      this.recentKeys.add(dedupKey);
+      this.recentKeysQueue.push(dedupKey);
+      if (this.recentKeysQueue.length > 50000) {
+        const old = this.recentKeysQueue.shift();
+        if (old) this.recentKeys.delete(old);
+      }
+
+      const [rootDomain, category] = classifyDestination(item.dest);
 
       this.buffer.push({
         ts: tsFormatted,
