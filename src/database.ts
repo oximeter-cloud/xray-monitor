@@ -568,13 +568,16 @@ export function queryDomainDetail(domain: string, hours: number = 24) {
       h.user_id,
       COALESCE(u.username, 'User_' || h.user_id) as username,
       SUM(h.hits) as hits,
-      MAX(h.hour_bucket) as last_seen
+      COALESCE(
+        (SELECT MAX(ts) FROM connections WHERE user_id = h.user_id AND root_domain = ?),
+        MAX(h.hour_bucket)
+      ) as last_seen
     FROM hourly_stats h
     LEFT JOIN users u ON h.user_id = u.user_id
     WHERE h.root_domain = ? AND h.hour_bucket >= ?
     GROUP BY h.user_id, u.username
     ORDER BY hits DESC LIMIT 20;
-  `).all(domain, cutoff);
+  `).all(domain, domain, cutoff);
 
   const timeline = db.prepare(`
     SELECT hour_bucket, SUM(hits) as hits

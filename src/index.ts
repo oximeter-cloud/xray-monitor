@@ -281,9 +281,11 @@ app.get("/api/user/:userId", async (c) => {
   const summary = queryUserDetail(userId, hours);
 
   try {
-    const [hwidRes, srhRes] = await Promise.all([
+    const [hwidRes, srhRes, nodes, profiles] = await Promise.all([
       remnaFetch("/hwid/devices?size=500").catch(() => ({ response: { devices: [] } })),
       remnaFetch("/subscription-request-history?size=500").catch(() => ({ response: { records: [] } })),
+      getRemnawaveNodes(),
+      getRemnawaveConfigProfiles(),
     ]);
 
     const userDevices = (hwidRes.response?.devices || []).filter((d: any) => d.userId === userId);
@@ -291,6 +293,28 @@ app.get("/api/user/:userId", async (c) => {
 
     (summary as any).devices = userDevices;
     (summary as any).srh = userSrh;
+
+    // Enrich recent connections with exact route pathway
+    (summary as any).recent_connections = (summary.recent_connections || []).map((rc: any) => {
+      const res = resolveConnectionNodes(
+        rc.inbound,
+        rc.outbound,
+        rc.node || "local",
+        nodes,
+        (summary.user?.connected_node as string) || undefined,
+        profiles
+      );
+      return {
+        ...rc,
+        hops: res.hops,
+        is_direct: res.isDirect,
+        ingress_node: res.ingressShortName,
+        ingress_type: res.ingressType,
+        involved_nodes: res.involved,
+        node_path: res.nodePath,
+        detailed_pathway: res.detailedPathway,
+      };
+    });
   } catch (err: any) {
     (summary as any).devices = [];
     (summary as any).srh = [];

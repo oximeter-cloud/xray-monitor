@@ -515,6 +515,40 @@
           <div id="modalUserDevices" class="space-y-2 overflow-x-auto custom-scrollbar"></div>
         </div>
 
+        <!-- User Top Destinations -->
+        <div>
+          <h4 class="text-xs font-semibold uppercase text-zinc-400 mb-2 tracking-wider">Top Destinations Visited by this User</h4>
+          <div class="border border-zinc-800 rounded-lg overflow-x-auto max-h-56 custom-scrollbar">
+            <table class="w-full min-w-[480px] text-left text-xs text-zinc-300">
+              <thead class="bg-zinc-950/60 text-zinc-400 uppercase">
+                <tr>
+                  <th class="px-3 py-2">Domain</th>
+                  <th class="px-3 py-2">Category</th>
+                  <th class="px-3 py-2 text-right">Hits</th>
+                </tr>
+              </thead>
+              <tbody id="modalUserDomains" class="divide-y divide-zinc-800/40"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Recent User Connections (Latest Website Destinations) -->
+        <div>
+          <h4 class="text-xs font-semibold uppercase text-zinc-400 mb-2 tracking-wider">Recent Connection Log (Latest Destinations)</h4>
+          <div class="border border-zinc-800 rounded-lg overflow-x-auto max-h-64 custom-scrollbar">
+            <table class="w-full min-w-[620px] text-left text-xs text-zinc-300">
+              <thead class="bg-zinc-950/60 font-sans text-zinc-400 uppercase">
+                <tr>
+                  <th class="px-3 py-2">Time (Tehran)</th>
+                  <th class="px-3 py-2">Website Destination</th>
+                  <th class="px-3 py-2">Route Pathway</th>
+                </tr>
+              </thead>
+              <tbody id="modalUserRecent" class="divide-y divide-zinc-800/40"></tbody>
+            </table>
+          </div>
+        </div>
+
         <!-- User Subscription Request History (SRH) -->
         <div>
           <h4 class="text-xs font-semibold uppercase text-zinc-400 mb-2 tracking-wider flex items-center justify-between">
@@ -533,40 +567,6 @@
                 </tr>
               </thead>
               <tbody id="modalUserSrh" class="divide-y divide-zinc-800/40 font-mono text-[11px]"></tbody>
-            </table>
-          </div>
-        </div>
-
-        <!-- User Top Destinations -->
-        <div>
-          <h4 class="text-xs font-semibold uppercase text-zinc-400 mb-2 tracking-wider">Top Destinations Visited by this User</h4>
-          <div class="border border-zinc-800 rounded-lg overflow-x-auto max-h-56 custom-scrollbar">
-            <table class="w-full min-w-[480px] text-left text-xs text-zinc-300">
-              <thead class="bg-zinc-950/60 text-zinc-400 uppercase">
-                <tr>
-                  <th class="px-3 py-2">Domain</th>
-                  <th class="px-3 py-2">Category</th>
-                  <th class="px-3 py-2 text-right">Hits</th>
-                </tr>
-              </thead>
-              <tbody id="modalUserDomains" class="divide-y divide-zinc-800/40"></tbody>
-            </table>
-          </div>
-        </div>
-
-        <!-- Recent User Connections -->
-        <div>
-          <h4 class="text-xs font-semibold uppercase text-zinc-400 mb-2 tracking-wider">Recent Connection Log</h4>
-          <div class="border border-zinc-800 rounded-lg overflow-x-auto max-h-56 custom-scrollbar">
-            <table class="w-full min-w-[600px] text-left text-xs font-mono text-zinc-300">
-              <thead class="bg-zinc-950/60 font-sans text-zinc-400 uppercase">
-                <tr>
-                  <th class="px-3 py-2">Time (Tehran)</th>
-                  <th class="px-3 py-2">Target</th>
-                  <th class="px-3 py-2">Pathway (Tunnel → Bridge → Outbound)</th>
-                </tr>
-              </thead>
-              <tbody id="modalUserRecent" class="divide-y divide-zinc-800/40"></tbody>
             </table>
           </div>
         </div>
@@ -1201,10 +1201,16 @@
           recentTbody.innerHTML = '<tr><td colspan="3" class="px-3 py-4 text-center text-zinc-500">No connection logs.</td></tr>';
         } else {
           recentTbody.innerHTML = data.recent_connections.map(c => `
-            <tr class="text-[11px]">
-              <td class="px-3 py-1.5 text-zinc-400 whitespace-nowrap">${toTehranTime(c.ts)}</td>
-              <td class="px-3 py-1.5 text-indigo-300 font-medium truncate max-w-xs">${c.dest}:${c.port}</td>
-              <td class="px-3 py-1.5">${formatRoutePathway(c.inbound, c.outbound)}</td>
+            <tr class="hover:bg-zinc-800/30 transition text-[11px]">
+              <td class="px-3 py-2 text-zinc-400 whitespace-nowrap">${toTehranTime(c.ts)}</td>
+              <td class="px-3 py-2">
+                <div class="font-medium text-zinc-100 flex items-center gap-1.5">
+                  <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                  <span>${c.root_domain && c.root_domain !== 'unknown' ? c.root_domain : c.dest}</span>
+                </div>
+                <div class="text-[10px] text-zinc-500 font-mono mt-0.5">${c.dest}:${c.port}</div>
+              </td>
+              <td class="px-3 py-2">${formatRoutePathway(c.inbound, c.outbound, c)}</td>
             </tr>
           `).join('');
         }
@@ -1226,10 +1232,15 @@
           tbody.innerHTML = '<tr><td colspan="3" class="px-4 py-4 text-center text-zinc-500">No user visits recorded.</td></tr>';
         } else {
           tbody.innerHTML = data.top_users.map(u => `
-            <tr>
-              <td class="px-4 py-2 font-medium text-zinc-200">${u.username} <span class="text-zinc-500 font-mono">(#${u.user_id})</span></td>
+            <tr class="hover:bg-zinc-800/30 transition text-xs">
+              <td class="px-4 py-2 font-medium text-zinc-200">
+                <button onclick="inspectUser(${u.user_id}, '${u.username}')" class="text-brand-400 hover:text-brand-300 hover:underline text-left">
+                  ${u.username}
+                </button>
+                <span class="text-zinc-500 font-mono text-[10px] ml-1">(#${u.user_id})</span>
+              </td>
               <td class="px-4 py-2 text-right font-mono text-zinc-300">${Number(u.hits).toLocaleString()}</td>
-              <td class="px-4 py-2 text-zinc-400">${u.last_seen || '-'}</td>
+              <td class="px-4 py-2 font-mono text-zinc-400 text-[11px]">${toTehranTime(u.last_seen)}</td>
             </tr>
           `).join('');
         }
