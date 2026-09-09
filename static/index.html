@@ -1051,20 +1051,37 @@
           const directPct = ((directHits / totalHitsInRoute) * 100).toFixed(1);
           const tunneledPct = ((tunneledHits / totalHitsInRoute) * 100).toFixed(1);
 
+          const isBridge = c.node_role === 'BRIDGE';
+          const isTunnel = c.node_role === 'TUNNEL';
+
+          const nodeBadge = `<span class="px-1.5 py-0.5 rounded text-[9px] font-mono ${isTunnel ? 'bg-amber-500/15 text-amber-400 border border-amber-500/25' : 'bg-indigo-500/15 text-indigo-300 border border-indigo-500/25'}">${c.node_short || (isTunnel ? 'IR1' : 'DE1')}</span>`;
+
+          const directCell = isTunnel
+            ? `<div class="font-mono text-zinc-500 text-[11px]">-</div><div class="text-[10px] text-zinc-600 font-sans">Tunnel Node</div>`
+            : `
+              <div class="font-mono text-emerald-400 font-medium">${Number(directHits).toLocaleString()} <span class="text-zinc-500 text-[10px]">(${directPct}%)</span></div>
+              <div class="text-[10px] text-zinc-500 font-sans">via ${c.node_short || 'DE1'} (${c.direct_users || 0} users)</div>
+            `;
+
+          const tunneledCell = isTunnel
+            ? `
+              <div class="font-mono text-amber-400 font-medium">${Number(c.total_hits).toLocaleString()} <span class="text-zinc-500 text-[10px]">(100%)</span></div>
+              <div class="text-[10px] text-zinc-500 font-sans">Raw Tunnel (${c.users_count || 0} users)</div>
+            `
+            : `
+              <div class="font-mono text-amber-400 font-medium">${Number(tunneledHits).toLocaleString()} <span class="text-zinc-500 text-[10px]">(${tunneledPct}%)</span></div>
+              <div class="text-[10px] text-zinc-500 font-sans">${c.feeding_tunnels && c.feeding_tunnels.length > 0 ? 'From: ' + c.feeding_tunnels.join(', ') : 'No tunnel feed'}</div>
+            `;
+
           return `
             <tr class="hover:bg-zinc-800/30 transition">
               <td class="px-4 py-3 font-sans font-medium text-zinc-100 flex items-center gap-2">
-                <span class="w-1.5 h-1.5 rounded-full ${directHits > 0 && tunneledHits > 0 ? 'bg-cyan-400' : (tunneledHits > 0 ? 'bg-amber-400' : 'bg-emerald-400')}"></span>
+                <span class="w-1.5 h-1.5 rounded-full ${isBridge && directHits > 0 && tunneledHits > 0 ? 'bg-cyan-400' : (isTunnel ? 'bg-amber-400' : 'bg-indigo-400')}"></span>
                 <span>${c.tag}</span>
+                ${nodeBadge}
               </td>
-              <td class="px-4 py-3">
-                <div class="font-mono text-emerald-400 font-medium">${Number(directHits).toLocaleString()} <span class="text-zinc-500 text-[10px]">(${directPct}%)</span></div>
-                <div class="text-[10px] text-zinc-500 font-sans">via DE1 (${c.direct_users || 0} users)</div>
-              </td>
-              <td class="px-4 py-3">
-                <div class="font-mono text-amber-400 font-medium">${Number(tunneledHits).toLocaleString()} <span class="text-zinc-500 text-[10px]">(${tunneledPct}%)</span></div>
-                <div class="text-[10px] text-zinc-500 font-sans">via IR1 (${c.tunneled_users || 0} users)</div>
-              </td>
+              <td class="px-4 py-3">${directCell}</td>
+              <td class="px-4 py-3">${tunneledCell}</td>
               <td class="px-4 py-3 text-right">
                 <div class="font-mono font-medium text-zinc-200">${volumeText}</div>
                 <div class="font-mono text-[10px] text-zinc-500 mt-0.5">${ioText}</div>

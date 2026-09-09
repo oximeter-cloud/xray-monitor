@@ -26,7 +26,9 @@ import {
 } from "./database";
 import {
   getRemnawaveNodes,
+  getRemnawaveConfigProfiles,
   resolveConnectionNodes,
+  getFeedingTunnelInbounds,
   isBridgeRole,
   type RemnaNode,
 } from "./topology";
@@ -141,13 +143,25 @@ app.get("/api/top-inbounds", async (c) => {
 
   // 1. Query recorded inbounds from database for the timeframe
   const rawInbounds = queryTopInbounds(hours, userId, node);
-  // ONLY KEEP inbounds that have actual activity! Never show unused 0-hit / 0-byte inbounds!
   const activeInbounds = rawInbounds.filter((ib) => (ib.total_hits || 0) > 0 || (ib.total_bytes || 0) > 0);
 
-  const nodes = await getRemnawaveNodes();
+  const [nodes, profiles] = await Promise.all([
+    getRemnawaveNodes(),
+    getRemnawaveConfigProfiles(),
+  ]);
 
   const tunnelNodes = nodes.filter((n) => n.role === "TUNNEL");
   const bridgeNodes = nodes.filter((n) => n.role === "BRIDGE");
+
+  // Map of total recorded stats per inbound tag
+  const inboundStatsMap = new Map<string, { hits: number; bytes: number; users: number }>();
+  for (const ib of activeInbounds) {
+    inboundStatsMap.set(ib.inbound, {
+      hits: ib.total_hits || 0,
+      bytes: ib.total_bytes || 0,
+      users: ib.users_count || 0,
+    });
+  }
 
   const chains: any[] = [];
 
@@ -155,44 +169,51 @@ app.get("/api/top-inbounds", async (c) => {
     const tag = ib.inbound;
     if (tag.includes("API")) continue;
 
-    // Find which bridge nodes have this inbound configured in Remnawave
-    const matchingBridges = bridgeNodes.filter((b) =>
-      b.activeInbounds.some((i) => i.tag === tag)
-    );
-    const firstBridge = matchingBridges[0];
-    const bridgeInboundConfig = firstBridge
-      ? firstBridge.activeInbounds.find((i) => i.tag === tag)
-      : undefined;
-
-    // Find which tunnel nodes link to this inbound (by port or tag correlation)
-    const matchingTunnels = tunnelNodes.filter((t) =>
-      t.activeInbounds.some(
-        (ti) =>
-          (bridgeInboundConfig?.port && ti.port === bridgeInboundConfig.port) ||
-          ti.tag === `${tag}-loop` ||
-          ti.tag === tag ||
-          ti.tag.includes(tag)
-      )
-    );
+    // Identify owner node from Remnawave config
+    const ownerNode = nodes.find((n) => n.activeInbounds.some((i) => i.tag === tag));
+    const isBridge = ownerNode ? ownerNode.role === "BRIDGE" : bridgeNodes.some((b) => b.activeInbounds.some((i) => i.tag === tag));
+    const isTunnel = ownerNode ? ownerNode.role === "TUNNEL" : tunnelNodes.some((t) => t.activeInbounds.some((i) => i.tag === tag));
 
     // If user filtered by specific node, filter accordingly
     if (node) {
-      const matchesNode =
-        matchingTunnels.some((t) => t.name === node || t.shortName === node) ||
-        matchingBridges.some((b) => b.name === node || b.shortName === node);
-      if (!matchesNode) continue;
+      const matchNode = ownerNode && (ownerNode.name === node || ownerNode.shortName === node);
+      if (!matchNode) continue;
     }
 
-    const hasTunnels = matchingTunnels.length > 0;
-    const hasBridges = matchingBridges.length > 0;
-    const isDual = hasTunnels && hasBridges;
-    const chainType = isDual ? "DUAL_ENTRY" : (hasTunnels ? "TUNNEL_CHAIN" : "DIRECT_BRIDGE");
-    const typeLabel = isDual ? "Dual Entry (Tunneled & Direct)" : (hasTunnels ? "Tunneled" : "Direct Bridge");
+    let directHits = 0;
+    let tunneledHits = 0;
+    let directBytes = 0;
+    let tunneledBytes = 0;
+    let directUsers = 0;
+    let tunneledUsers = 0;
+    let feedingTunnels: string[] = [];
 
-    const directHits = (ib as any).direct_hits || 0;
-    const tunneledHits = (ib as any).tunneled_hits || 0;
-    const directUsers = (ib as any).direct_users || 0;
-    const tunneledUsers = (ib as any).tunneled_users || 0;
+    if (isBridge) {
+      // FORMULA: direct traffic = bridge inbound traffic - sum(tunneled traffic of before hops)
+      feedingTunnels = getFeedingTunnelInbounds(profiles, tag);
+      tunneledHits = feedingTunnels.reduce((sum, tTag) => sum + (inboundStatsMap.get(tTag)?.hits || 0), 0);
+      tunneledBytes = feedingTunnels.reduce((sum, tTag) => sum + (inboundStatsMap.get(tTag)?.bytes || 0), 0);
+      tunneledUsers = feedingTunnels.reduce((sum, tTag) => Math.max(sum, inboundStatsMap.get(tTag)?.users || 0), 0);
+
+      directHits = Math.max(0, (ib.total_hits || 0) - tunneledHits);
+      directBytes = Math.max(0, (ib.total_bytes || 0) - tunneledBytes);
+      directUsers = Math.max(0, (ib.users_count || 0) - tunneledUsers);
+    } else {
+      // FORMULA for tunnel inbound: just show its traffic (without any calculation)
+      tunneledHits = ib.total_hits || 0;
+      directHits = 0;
+      tunneledBytes = ib.total_bytes || 0;
+      directBytes = 0;
+      tunneledUsers = ib.users_count || 0;
+      directUsers = 0;
+    }
+
+    const hasTunnels = isTunnel || feedingTunnels.length > 0;
+    const isDual = isBridge && feedingTunnels.length > 0 && directHits > 0;
+    const chainType = isDual ? "DUAL_ENTRY" : (isTunnel ? "TUNNEL_CHAIN" : "DIRECT_BRIDGE");
+    const typeLabel = isDual
+      ? "Dual Entry (Tunneled & Direct)"
+      : (isTunnel ? "Tunnel Ingress" : "Direct Bridge");
 
     chains.push({
       tag,
@@ -201,11 +222,10 @@ app.get("/api/top-inbounds", async (c) => {
       type_label: typeLabel,
       is_tunneled: hasTunnels,
       is_dual: isDual,
-      tunnels: matchingTunnels.map((t) => ({ name: t.name, shortName: t.shortName })),
-      bridges: (matchingBridges.length > 0 ? matchingBridges : bridgeNodes).map((b) => ({
-        name: b.name,
-        shortName: b.shortName,
-      })),
+      node_name: ownerNode?.name || (isTunnel ? "IR1-Oximeter" : "DE1-Oximeter"),
+      node_short: ownerNode?.shortName || (isTunnel ? "IR1" : "DE1"),
+      node_role: ownerNode?.role || (isTunnel ? "TUNNEL" : "BRIDGE"),
+      feeding_tunnels: feedingTunnels,
       total_hits: ib.total_hits,
       direct_hits: directHits,
       tunneled_hits: tunneledHits,
@@ -213,7 +233,11 @@ app.get("/api/top-inbounds", async (c) => {
       direct_users: directUsers,
       tunneled_users: tunneledUsers,
       total_bytes: ib.total_bytes,
+      direct_bytes: directBytes,
+      tunneled_bytes: tunneledBytes,
       total_formatted: ib.total_formatted,
+      direct_formatted: formatBytes(directBytes),
+      tunneled_formatted: formatBytes(tunneledBytes),
       uplink_formatted: ib.uplink_formatted,
       downlink_formatted: ib.downlink_formatted,
     });
@@ -290,7 +314,10 @@ app.get("/api/live-stream", async (c) => {
   const node = c.req.query("node") || undefined;
 
   const stream = queryLiveStream(limit, userId, search, node);
-  const nodes = await getRemnawaveNodes();
+  const [nodes, profiles] = await Promise.all([
+    getRemnawaveNodes(),
+    getRemnawaveConfigProfiles(),
+  ]);
 
   const enriched = stream.map((item: any) => {
     const res = resolveConnectionNodes(
@@ -298,7 +325,8 @@ app.get("/api/live-stream", async (c) => {
       item.outbound,
       item.node || collector.getLocalNodeName(),
       nodes,
-      item.connected_node
+      item.connected_node,
+      profiles
     );
     return {
       ...item,
