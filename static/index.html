@@ -1322,28 +1322,37 @@
       return `<span class="text-zinc-400 font-mono text-[10px]">${r?.node_path || r?.node || 'DE1'}</span>`;
     }
 
-    // TEHRAN TIMEZONE HELPERS
+    // TEHRAN TIMEZONE UTILITIES
     function toTehranTime(str) {
       if (!str) return '-';
       try {
         let s = String(str).trim();
+        // Handle unix epochs in seconds or milliseconds
+        if (/^\d{10,13}$/.test(s)) {
+          const ms = s.length === 10 ? Number(s) * 1000 : Number(s);
+          return formatTehranDate(new Date(ms));
+        }
         if (!s.includes('T') && s.includes(' ')) s = s.replace(' ', 'T') + 'Z';
         else if (!s.endsWith('Z') && !s.includes('+')) s += 'Z';
         const d = new Date(s);
         if (isNaN(d.getTime())) return str;
-        return new Intl.DateTimeFormat('en-GB', {
-          timeZone: 'Asia/Tehran',
-          year: 'numeric',
-          month: '2-digit',
-          day: '2-digit',
-          hour: '2-digit',
-          minute: '2-digit',
-          second: '2-digit',
-          hour12: false
-        }).format(d).replace(',', '');
+        return formatTehranDate(d);
       } catch {
         return str;
       }
+    }
+
+    function formatTehranDate(d) {
+      return new Intl.DateTimeFormat('en-GB', {
+        timeZone: 'Asia/Tehran',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false
+      }).format(d).replace(',', '');
     }
 
     function startTehranClock() {
