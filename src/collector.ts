@@ -351,7 +351,7 @@ export class XrayCollector {
       const port = parseInt(item.port, 10);
       const tsFormatted = (item.ts || "").replaceAll("/", "-").split(".")[0];
       const [rootDomain, category] = classifyDestination(item.dest);
-      const cleanInbound = (item.inbound || "in-default").replace(/-loop$/, "");
+      const cleanInbound = item.inbound || (role === "TUNNEL" ? "in-default-loop" : "in-default");
 
       this.buffer.push({
         ts: tsFormatted,

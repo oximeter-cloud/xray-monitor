@@ -356,9 +356,10 @@ export function resolveConnectionNodes(
     });
 
     // Check if this outbound forwards to a BRIDGE node
+    const effectiveOutbound = configuredOutboundTag || outbound;
     const isBridgeForward =
-      configuredOutboundTag &&
-      (configuredOutboundTag.startsWith("bridge-") ||
+      effectiveOutbound &&
+      (effectiveOutbound.startsWith("bridge-") ||
         outboundConfig?.streamSettings?.tlsSettings?.serverName?.includes("de") ||
         outboundConfig?.streamSettings?.tlsSettings?.serverName?.includes("bridge"));
 
@@ -369,10 +370,10 @@ export function resolveConnectionNodes(
         // Find matching bridge inbound (by path or name)
         const path = outboundConfig?.streamSettings?.wsSettings?.path;
         const bridgeIn = bridgeNode.activeInbounds.find((ib) => {
-          return (path && ib.path && path === ib.path) || ib.tag === configuredOutboundTag?.replace(/^bridge-/, "").replace(/-out$/, "");
+          return (path && ib.path && path === ib.path) || ib.tag === effectiveOutbound?.replace(/^bridge-/, "").replace(/-out$/, "");
         });
 
-        const bridgeTag = bridgeIn?.tag || configuredOutboundTag?.replace(/^bridge-/, "").replace(/-out$/, "") || "in-default";
+        const bridgeTag = bridgeIn?.tag || effectiveOutbound?.replace(/^bridge-/, "").replace(/-out$/, "") || "in-default";
 
         hops.push({
           nodeName: bridgeNode.name,
@@ -405,7 +406,7 @@ export function resolveConnectionNodes(
     // -> No Bridge hop added! Exits directly from Tunnel!
   } else {
     // Case B: Origin is a BRIDGE node
-    // Check if user entered via a tunnel
+    // Check if user entered via a tunnel (User must have connected to an IR node!)
     const tunnelMap = buildTunnelToBridgeInboundMap(profiles);
     let feedingTunnelTag: string | undefined;
 
@@ -418,9 +419,7 @@ export function resolveConnectionNodes(
 
     const isTunneled =
       Boolean(feedingTunnelTag) &&
-      (Boolean(userConnectedNode && userConnectedNode.includes("IR")) ||
-        inbound.includes("default") ||
-        inbound.startsWith("in-"));
+      Boolean(userConnectedNode && userConnectedNode.toUpperCase().includes("IR"));
 
     if (isTunneled) {
       const tunnelNode = nodes.find((n) => n.role === "TUNNEL") || nodes.find((n) => n.shortName === "IR1");
@@ -475,7 +474,19 @@ export function resolveConnectionNodes(
   const nodePath = Array.from(involvedMap.keys()).join(" → ");
 
   // Final egress outbound label
-  const finalOutbound = outbound || configuredOutboundTag || "direct";
+  let finalOutbound = outbound || configuredOutboundTag || "direct";
+  const lastHop = hops[hops.length - 1];
+  if (lastHop && lastHop.role === "BRIDGE") {
+    // If transit tag was passed (e.g. bridge-default-out), replace with Bridge real egress
+    if (finalOutbound.startsWith("bridge-") || finalOutbound.endsWith("-loop")) {
+      const bridgeProfile = profiles.find((p) => p.name === "bridge" || p.name.toLowerCase().includes("bridge"));
+      const bridgeRule = bridgeProfile?.config?.routing?.rules?.find(
+        (r) => Array.isArray(r.inboundTag) && r.inboundTag.includes(lastHop.tag)
+      );
+      finalOutbound = bridgeRule?.outboundTag || (bridgeRule as any)?.balancerTag || "warp";
+    }
+  }
+
   const hopTags = hops.map((h) => `${h.shortName}: ${h.tag}`);
   const detailedPathway = `${hopTags.join(" → ")} → ${finalOutbound}`;
 

@@ -191,9 +191,13 @@ app.get("/api/top-inbounds", async (c) => {
     if (isBridge) {
       // FORMULA: direct traffic = bridge inbound traffic - sum(tunneled traffic of before hops)
       feedingTunnels = getFeedingTunnelInbounds(profiles, tag);
-      tunneledHits = feedingTunnels.reduce((sum, tTag) => sum + (inboundStatsMap.get(tTag)?.hits || 0), 0);
-      tunneledBytes = feedingTunnels.reduce((sum, tTag) => sum + (inboundStatsMap.get(tTag)?.bytes || 0), 0);
-      tunneledUsers = feedingTunnels.reduce((sum, tTag) => Math.max(sum, inboundStatsMap.get(tTag)?.users || 0), 0);
+      const tunneledFromFeeders = feedingTunnels.reduce((sum, tTag) => sum + (inboundStatsMap.get(tTag)?.hits || 0), 0);
+      const tunneledBytesFromFeeders = feedingTunnels.reduce((sum, tTag) => sum + (inboundStatsMap.get(tTag)?.bytes || 0), 0);
+      const tunneledUsersFromFeeders = feedingTunnels.reduce((sum, tTag) => Math.max(sum, inboundStatsMap.get(tTag)?.users || 0), 0);
+
+      tunneledHits = Math.max(ib.tunneled_hits || 0, tunneledFromFeeders);
+      tunneledBytes = tunneledBytesFromFeeders;
+      tunneledUsers = Math.max(ib.tunneled_users || 0, tunneledUsersFromFeeders);
 
       directHits = Math.max(0, (ib.total_hits || 0) - tunneledHits);
       directBytes = Math.max(0, (ib.total_bytes || 0) - tunneledBytes);
