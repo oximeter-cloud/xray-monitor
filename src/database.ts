@@ -549,7 +549,7 @@ export function queryUserDetail(userId: number, hours: number = 24) {
     SELECT ts, proto, dest, root_domain, port, inbound, outbound, node
     FROM connections
     WHERE user_id = ?
-    ORDER BY id DESC LIMIT 20;
+    ORDER BY ts DESC, id DESC LIMIT 50;
   `).all(userId);
 
   return {

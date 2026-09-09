@@ -573,7 +573,7 @@
             <table class="w-full min-w-[620px] text-left text-xs text-zinc-300">
               <thead class="bg-zinc-950/60 font-sans text-zinc-400 uppercase">
                 <tr>
-                  <th class="px-3 py-2">Time (Tehran)</th>
+                  <th class="px-3 py-2 text-brand-400 font-medium">Time (Tehran) ▼</th>
                   <th class="px-3 py-2">Website Destination</th>
                   <th class="px-3 py-2">Route Pathway</th>
                 </tr>
@@ -1305,14 +1305,26 @@
           `).join('');
         }
 
-        // Recent Connection Logs with Tehran time and Route Pathway
+        // Recent Connection Logs with Tehran time and Route Pathway (Sorted newest first)
         const recentTbody = document.getElementById('modalUserRecent');
-        if (data.recent_connections.length === 0) {
+        const sortedRecent = (data.recent_connections || []).sort((a, b) => {
+          const parseTime = (val) => {
+            if (!val) return 0;
+            let s = String(val).trim();
+            if (!s.includes('T') && s.includes(' ')) s = s.replace(' ', 'T') + 'Z';
+            else if (!s.endsWith('Z') && !s.includes('+')) s += 'Z';
+            const t = new Date(s).getTime();
+            return isNaN(t) ? 0 : t;
+          };
+          return parseTime(b.ts) - parseTime(a.ts);
+        });
+
+        if (sortedRecent.length === 0) {
           recentTbody.innerHTML = '<tr><td colspan="3" class="px-3 py-4 text-center text-zinc-500">No connection logs.</td></tr>';
         } else {
-          recentTbody.innerHTML = data.recent_connections.map(c => `
+          recentTbody.innerHTML = sortedRecent.map(c => `
             <tr class="hover:bg-zinc-800/30 transition text-[11px]">
-              <td class="px-3 py-2 text-zinc-400 whitespace-nowrap">${toTehranTime(c.ts)}</td>
+              <td class="px-3 py-2 text-zinc-400 whitespace-nowrap font-mono">${toTehranTime(c.ts)}</td>
               <td class="px-3 py-2">
                 <div class="font-medium text-zinc-100 flex items-center gap-1.5">
                   <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
