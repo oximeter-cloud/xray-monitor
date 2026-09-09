@@ -43,7 +43,10 @@ export function classifyDestination(dest: string): [string, string] {
       destLower.startsWith("157.240.") ||
       destLower.startsWith("31.13.") ||
       destLower.startsWith("179.60.") ||
-      destLower.startsWith("57.144.")
+      destLower.startsWith("57.144.") ||
+      destLower.startsWith("185.60.") ||
+      destLower.startsWith("69.171.") ||
+      destLower.startsWith("129.134.")
     ) {
       return ["instagram.com", "Instagram / Meta"];
     }
@@ -54,9 +57,29 @@ export function classifyDestination(dest: string): [string, string] {
       destLower === "8.8.8.8" ||
       destLower === "8.8.4.4" ||
       destLower.startsWith("142.250.") ||
-      destLower.startsWith("172.217.")
+      destLower.startsWith("142.251.") ||
+      destLower.startsWith("172.217.") ||
+      destLower.startsWith("216.239.") ||
+      destLower.startsWith("74.125.") ||
+      destLower.startsWith("64.233.") ||
+      destLower.startsWith("66.102.") ||
+      destLower.startsWith("66.249.") ||
+      destLower.startsWith("34.") ||
+      destLower.startsWith("35.")
     ) {
       return ["google.com", "Google / YouTube"];
+    }
+    if (
+      destLower.startsWith("3.") ||
+      destLower.startsWith("18.") ||
+      destLower.startsWith("52.") ||
+      destLower.startsWith("54.") ||
+      destLower.startsWith("15.") ||
+      destLower.startsWith("16.") ||
+      destLower.startsWith("44.") ||
+      destLower.startsWith("99.")
+    ) {
+      return ["aws.amazon.com", "Amazon AWS"];
     }
     if (
       destLower === "1.1.1.1" ||
@@ -66,9 +89,53 @@ export function classifyDestination(dest: string): [string, string] {
       destLower.startsWith("104.18.") ||
       destLower.startsWith("104.19.") ||
       destLower.startsWith("104.20.") ||
-      destLower.startsWith("104.21.")
+      destLower.startsWith("104.21.") ||
+      destLower.startsWith("104.22.") ||
+      destLower.startsWith("104.23.") ||
+      destLower.startsWith("104.24.") ||
+      destLower.startsWith("172.64.") ||
+      destLower.startsWith("172.65.") ||
+      destLower.startsWith("172.66.") ||
+      destLower.startsWith("172.67.") ||
+      destLower.startsWith("162.158.") ||
+      destLower.startsWith("162.159.") ||
+      destLower.startsWith("108.162.") ||
+      destLower.startsWith("198.41.") ||
+      destLower.startsWith("188.114.")
     ) {
       return ["cloudflare.com", "Cloudflare"];
+    }
+    if (destLower.startsWith("151.101.") || destLower.startsWith("199.232.")) {
+      return ["fastly.net", "Fastly CDN"];
+    }
+    if (
+      destLower.startsWith("20.") ||
+      destLower.startsWith("40.") ||
+      destLower.startsWith("51.") ||
+      destLower.startsWith("13.")
+    ) {
+      return ["microsoft.com", "Microsoft / Azure"];
+    }
+    if (destLower.startsWith("104.244.")) {
+      return ["x.com", "X (Twitter)"];
+    }
+    if (
+      destLower.startsWith("159.69.") ||
+      destLower.startsWith("116.203.") ||
+      destLower.startsWith("168.119.") ||
+      destLower.startsWith("135.181.")
+    ) {
+      return ["hetzner.com", "Hetzner Cloud"];
+    }
+    if (
+      destLower.startsWith("134.209.") ||
+      destLower.startsWith("138.68.") ||
+      destLower.startsWith("159.89.") ||
+      destLower.startsWith("165.227.") ||
+      destLower.startsWith("167.99.") ||
+      destLower.startsWith("178.62.")
+    ) {
+      return ["digitalocean.com", "DigitalOcean"];
     }
     return [destLower, "Direct IP"];
   }
