@@ -492,8 +492,11 @@ export class XrayCollector {
     total_formatted: string;
   }[] {
     try {
+      const pid = execSync("pidof xray 2>/dev/null", { encoding: "utf8" }).trim().split(/\s+/)[0];
+      if (!pid || !/^\d+$/.test(pid)) return [];
+
       const out = execSync(
-        'nsenter -t $(pidof xray) -n /usr/local/bin/xray api statsquery -s "unix:@xtls-api-a15D2PSZsh" -pattern "inbound"',
+        `nsenter -t ${pid} -n /usr/local/bin/xray api statsquery -s "unix:@xtls-api-a15D2PSZsh" -pattern "inbound"`,
         { encoding: "utf8", timeout: 2000 }
       );
       const data = JSON.parse(out);

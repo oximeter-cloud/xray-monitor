@@ -383,12 +383,12 @@ app.post("/api/ingest", async (c) => {
     const nodeName = body.node || "remote";
     const role = body.role || "BRIDGE";
 
-    if (body.connections && Array.isArray(body.connections) && body.connections.length > 0) {
+    if (body.connections && Array.isArray(body.connections)) {
       collector.ingestNodeBatch(nodeName, role, body.connections);
       return c.json({ status: "ok", processed: body.connections.length });
     }
 
-    if (body.lines && Array.isArray(body.lines) && body.lines.length > 0) {
+    if (body.lines && Array.isArray(body.lines)) {
       collector.ingestLines(body.lines, nodeName);
       return c.json({ status: "ok", processed: body.lines.length });
     }
