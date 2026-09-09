@@ -71,9 +71,13 @@
       </select>
 
       <!-- Refresh / Live Button -->
-      <button id="liveToggleBtn" onclick="toggleAutoRefresh()" class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-zinc-800 bg-zinc-900 text-xs text-zinc-300 hover:bg-zinc-800 transition">
-        <span class="h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>
-        <span id="liveBtnText">Auto-Refresh On</span>
+      <button id="liveToggleBtn" onclick="toggleAutoRefresh()" class="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-emerald-500/40 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20 transition text-xs font-medium shadow-sm shadow-emerald-950/30">
+        <span class="relative flex h-2 w-2">
+          <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+          <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+        </span>
+        <span>Auto-Refresh ON</span>
+        <span class="text-[10px] text-emerald-400/80 font-mono bg-emerald-500/20 px-1.5 py-0.5 rounded">4s</span>
       </button>
     </div>
   </header>
@@ -225,20 +229,50 @@
         </div>
         <div class="overflow-x-auto custom-scrollbar">
           <table class="w-full text-left text-xs text-zinc-300">
-            <thead class="bg-zinc-950/60 text-zinc-400 uppercase font-medium border-b border-zinc-800/80">
+            <thead class="bg-zinc-950/60 text-zinc-400 uppercase font-medium border-b border-zinc-800/80 select-none">
               <tr>
-                <th class="px-4 py-3">User ID</th>
-                <th class="px-4 py-3">Username</th>
+                <th onclick="setUsersSort('user_id')" class="px-4 py-3 cursor-pointer hover:text-white transition group">
+                  <div class="flex items-center gap-1.5">
+                    <span>User ID</span>
+                    <span id="sortIcon_user_id" class="text-zinc-600 group-hover:text-zinc-400">↕</span>
+                  </div>
+                </th>
+                <th onclick="setUsersSort('username')" class="px-4 py-3 cursor-pointer hover:text-white transition group">
+                  <div class="flex items-center gap-1.5">
+                    <span>Username</span>
+                    <span id="sortIcon_username" class="text-zinc-600 group-hover:text-zinc-400">↕</span>
+                  </div>
+                </th>
                 <th class="px-4 py-3">Ingress Route</th>
-                <th class="px-4 py-3">Status</th>
-                <th class="px-4 py-3 text-right">Requests in Range</th>
-                <th class="px-4 py-3 text-right">Unique Domains Visited</th>
-                <th class="px-4 py-3">Last Active</th>
+                <th onclick="setUsersSort('status')" class="px-4 py-3 cursor-pointer hover:text-white transition group">
+                  <div class="flex items-center gap-1.5">
+                    <span>Status</span>
+                    <span id="sortIcon_status" class="text-zinc-600 group-hover:text-zinc-400">↕</span>
+                  </div>
+                </th>
+                <th onclick="setUsersSort('total_hits')" class="px-4 py-3 text-right cursor-pointer hover:text-white transition group">
+                  <div class="flex items-center justify-end gap-1.5">
+                    <span>Requests in Range</span>
+                    <span id="sortIcon_total_hits" class="text-brand-400 font-bold">▼</span>
+                  </div>
+                </th>
+                <th onclick="setUsersSort('unique_domains')" class="px-4 py-3 text-right cursor-pointer hover:text-white transition group">
+                  <div class="flex items-center justify-end gap-1.5">
+                    <span>Unique Domains Visited</span>
+                    <span id="sortIcon_unique_domains" class="text-zinc-600 group-hover:text-zinc-400">↕</span>
+                  </div>
+                </th>
+                <th onclick="setUsersSort('last_seen')" class="px-4 py-3 cursor-pointer hover:text-white transition group">
+                  <div class="flex items-center gap-1.5">
+                    <span>Last Active</span>
+                    <span id="sortIcon_last_seen" class="text-zinc-600 group-hover:text-zinc-400">↕</span>
+                  </div>
+                </th>
                 <th class="px-4 py-3 text-center">Inspect</th>
               </tr>
             </thead>
             <tbody id="usersTableBody" class="divide-y divide-zinc-800/40">
-              <tr><td colspan="7" class="px-4 py-8 text-center text-zinc-500">Loading users...</td></tr>
+              <tr><td colspan="8" class="px-4 py-8 text-center text-zinc-500">Loading users...</td></tr>
             </tbody>
           </table>
         </div>
@@ -649,13 +683,34 @@
 
     function toggleAutoRefresh() {
       autoRefresh = !autoRefresh;
-      const text = document.getElementById('liveBtnText');
+      updateAutoRefreshUI();
       if (autoRefresh) {
-        text.innerText = "Auto-Refresh On";
         startAutoRefresh();
       } else {
-        text.innerText = "Auto-Refresh Off";
         stopAutoRefresh();
+      }
+    }
+
+    function updateAutoRefreshUI() {
+      const btn = document.getElementById('liveToggleBtn');
+      if (!btn) return;
+      if (autoRefresh) {
+        btn.className = "flex items-center gap-2 px-3 py-1.5 rounded-lg border border-emerald-500/40 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20 transition text-xs font-medium shadow-sm shadow-emerald-950/30";
+        btn.innerHTML = `
+          <span class="relative flex h-2 w-2">
+            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+            <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+          </span>
+          <span>Auto-Refresh ON</span>
+          <span class="text-[10px] text-emerald-400/80 font-mono bg-emerald-500/20 px-1.5 py-0.5 rounded">4s</span>
+        `;
+      } else {
+        btn.className = "flex items-center gap-2 px-3 py-1.5 rounded-lg border border-amber-500/50 bg-amber-950/30 text-amber-300 hover:bg-amber-900/40 transition text-xs font-medium shadow-sm";
+        btn.innerHTML = `
+          <span class="h-2 w-2 rounded-full bg-amber-400 ring-2 ring-amber-500/40"></span>
+          <span>Auto-Refresh PAUSED</span>
+          <span class="text-[10px] text-amber-300 font-mono bg-amber-500/20 px-1.5 py-0.5 rounded border border-amber-500/30">OFF</span>
+        `;
       }
     }
 
@@ -907,6 +962,95 @@
       }
     }
 
+    let usersSortKey = 'total_hits';
+    let usersSortOrder = 'desc';
+    let rawUsersData = [];
+
+    function setUsersSort(key) {
+      if (usersSortKey === key) {
+        usersSortOrder = usersSortOrder === 'asc' ? 'desc' : 'asc';
+      } else {
+        usersSortKey = key;
+        usersSortOrder = (key === 'total_hits' || key === 'unique_domains' || key === 'last_seen') ? 'desc' : 'asc';
+      }
+      renderUsersTable();
+    }
+
+    function updateUserSortHeaders() {
+      const keys = ['user_id', 'username', 'status', 'total_hits', 'unique_domains', 'last_seen'];
+      keys.forEach(k => {
+        const el = document.getElementById(`sortIcon_${k}`);
+        if (!el) return;
+        if (usersSortKey === k) {
+          el.className = "text-brand-400 font-bold";
+          el.innerHTML = usersSortOrder === 'asc' ? '▲' : '▼';
+        } else {
+          el.className = "text-zinc-600 group-hover:text-zinc-400";
+          el.innerHTML = '↕';
+        }
+      });
+    }
+
+    function renderUsersTable() {
+      const tbody = document.getElementById('usersTableBody');
+      if (!tbody) return;
+      if (!rawUsersData || rawUsersData.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="8" class="px-4 py-8 text-center text-zinc-500">No users found.</td></tr>';
+        return;
+      }
+
+      const sorted = [...rawUsersData].sort((a, b) => {
+        let valA = a[usersSortKey];
+        let valB = b[usersSortKey];
+
+        if (usersSortKey === 'user_id' || usersSortKey === 'total_hits' || usersSortKey === 'unique_domains') {
+          valA = Number(valA) || 0;
+          valB = Number(valB) || 0;
+        } else if (usersSortKey === 'last_seen') {
+          valA = valA ? new Date(valA).getTime() : 0;
+          valB = valB ? new Date(valB).getTime() : 0;
+        } else if (usersSortKey === 'status' || usersSortKey === 'username') {
+          valA = String(valA || '').toLowerCase();
+          valB = String(valB || '').toLowerCase();
+        }
+
+        if (valA < valB) return usersSortOrder === 'asc' ? -1 : 1;
+        if (valA > valB) return usersSortOrder === 'asc' ? 1 : -1;
+        return 0;
+      });
+
+      updateUserSortHeaders();
+
+      tbody.innerHTML = sorted.map(u => {
+        const isTunneled = u.connected_node && u.connected_node.toUpperCase().includes('IR');
+        const ingressBadge = isTunneled
+          ? `<span class="px-2 py-0.5 rounded text-[10px] font-medium bg-amber-500/15 text-amber-300 border border-amber-500/25">TUNNEL (${u.connected_node})</span>`
+          : `<span class="px-2 py-0.5 rounded text-[10px] font-medium bg-emerald-500/15 text-emerald-300 border border-emerald-500/25">DIRECT (${u.connected_node || 'DE1'})</span>`;
+
+        return `
+          <tr class="hover:bg-zinc-800/30 transition">
+            <td class="px-4 py-3 font-mono text-zinc-400">#${u.user_id}</td>
+            <td class="px-4 py-3 font-medium text-white flex items-center gap-2">
+              <span class="w-2 h-2 rounded-full ${u.status === 'ACTIVE' ? 'bg-emerald-500' : 'bg-zinc-600'}"></span>
+              <span>${u.username}</span>
+            </td>
+            <td class="px-4 py-3">${ingressBadge}</td>
+            <td class="px-4 py-3">
+              <span class="px-2 py-0.5 rounded text-[11px] ${u.status === 'ACTIVE' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-zinc-800 text-zinc-400'}">${u.status}</span>
+            </td>
+            <td class="px-4 py-3 text-right font-mono font-medium text-zinc-200">${Number(u.total_hits).toLocaleString()}</td>
+            <td class="px-4 py-3 text-right font-mono text-zinc-400">${u.unique_domains}</td>
+            <td class="px-4 py-3 font-mono text-zinc-400 text-[11px]">${toTehranTime(u.last_seen)}</td>
+            <td class="px-4 py-3 text-center">
+              <button onclick="inspectUser(${u.user_id}, '${u.username}')" class="px-2.5 py-1 rounded bg-brand-600/20 text-brand-400 border border-brand-500/30 hover:bg-brand-600 hover:text-white transition text-xs font-medium">
+                View Activity
+              </button>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+
     async function loadUsers() {
       try {
         const search = document.getElementById('userSearchInput').value.trim();
@@ -914,42 +1058,8 @@
         if (search) url += `&search=${encodeURIComponent(search)}`;
 
         const res = await fetch(url);
-        const users = await res.json();
-
-        const tbody = document.getElementById('usersTableBody');
-        if (users.length === 0) {
-          tbody.innerHTML = '<tr><td colspan="7" class="px-4 py-8 text-center text-zinc-500">No users found.</td></tr>';
-          return;
-        }
-
-        tbody.innerHTML = users.map(u => {
-          const isTunneled = u.connected_node && u.connected_node.toUpperCase().includes('IR');
-          const ingressBadge = isTunneled
-            ? `<span class="px-2 py-0.5 rounded text-[10px] font-medium bg-amber-500/15 text-amber-300 border border-amber-500/25">TUNNEL (${u.connected_node})</span>`
-            : `<span class="px-2 py-0.5 rounded text-[10px] font-medium bg-emerald-500/15 text-emerald-300 border border-emerald-500/25">DIRECT (${u.connected_node || 'DE1'})</span>`;
-
-          return `
-            <tr class="hover:bg-zinc-800/30 transition">
-              <td class="px-4 py-3 font-mono text-zinc-400">#${u.user_id}</td>
-              <td class="px-4 py-3 font-medium text-white flex items-center gap-2">
-                <span class="w-2 h-2 rounded-full ${u.status === 'ACTIVE' ? 'bg-emerald-500' : 'bg-zinc-600'}"></span>
-                ${u.username}
-              </td>
-              <td class="px-4 py-3">${ingressBadge}</td>
-              <td class="px-4 py-3">
-                <span class="px-2 py-0.5 rounded text-[11px] ${u.status === 'ACTIVE' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-zinc-800 text-zinc-400'}">${u.status}</span>
-              </td>
-              <td class="px-4 py-3 text-right font-mono font-medium text-zinc-200">${Number(u.total_hits).toLocaleString()}</td>
-              <td class="px-4 py-3 text-right font-mono text-zinc-400">${u.unique_domains}</td>
-              <td class="px-4 py-3 font-mono text-zinc-400">${toTehranTime(u.last_seen)}</td>
-              <td class="px-4 py-3 text-center">
-                <button onclick="inspectUser(${u.user_id}, '${u.username}')" class="px-2.5 py-1 rounded bg-brand-600/20 text-brand-400 border border-brand-500/30 hover:bg-brand-600 hover:text-white transition text-xs font-medium">
-                  View Activity
-                </button>
-              </td>
-            </tr>
-          `;
-        }).join('');
+        rawUsersData = await res.json();
+        renderUsersTable();
       } catch (e) {
         console.error(e);
       }
