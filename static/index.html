@@ -1237,28 +1237,53 @@
       debounceTimer = setTimeout(loadUsers, 300);
     }
 
-    // THREE-TIER ROUTE PATHWAY HELPER (TUNNEL -> BRIDGE -> OUTBOUND)
+    // DYNAMIC AUTO-TOPOLOGY ROUTE PATHWAY HELPER
     function formatRoutePathway(inbound, outbound, r) {
-      if (!inbound) return '-';
-      const isTunneled = !r?.is_direct && r?.ingress_type === 'TUNNEL';
-      const tunnelTag = isTunneled ? `${inbound}-loop` : null;
+      if (!inbound && (!r || !r.hops || r.hops.length === 0)) return '-';
 
-      const tunnelHtml = tunnelTag
-        ? `<span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-mono bg-amber-500/15 text-amber-400 border border-amber-500/25" title="Tunnel Ingress">${r.ingress_node || 'IR1'}: ${tunnelTag}</span>`
-        : `<span class="text-zinc-500 text-[10px] font-mono">Direct</span>`;
+      // 1. Dynamic N-hop rendering if hops array is available
+      if (r && Array.isArray(r.hops) && r.hops.length > 0) {
+        const hopHtml = r.hops.map(h => {
+          const col = h.role === 'TUNNEL'
+            ? 'bg-amber-500/15 text-amber-400 border-amber-500/25'
+            : (h.role === 'BRIDGE'
+              ? 'bg-indigo-500/15 text-indigo-300 border-indigo-500/25'
+              : 'bg-emerald-500/15 text-emerald-400 border-emerald-500/25');
+          return `<span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-mono border ${col}" title="${h.nodeName}">${h.shortName}: ${h.tag}</span>`;
+        }).join(' <span class="text-zinc-600 text-[10px]">→</span> ');
 
-      const bridgeHtml = `<span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-mono bg-indigo-500/15 text-indigo-300 border border-indigo-500/25" title="Bridge Inbound">${r?.ingress_node && r?.is_direct ? r.ingress_node : 'DE1'}: ${inbound}</span>`;
+        const outStr = r.outbound || outbound || 'direct';
+        const isOutNode = r.involved_nodes && r.involved_nodes.some(n => n.role === 'OUTBOUND');
+        const outCol = isOutNode ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/25' : 'bg-zinc-800 text-zinc-300';
+        const outHtml = `<span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-mono ${outCol}" title="Outbound Egress">${outStr}</span>`;
 
+        return `<div class="inline-flex items-center gap-1.5 whitespace-nowrap">${hopHtml} <span class="text-zinc-600 text-[10px]">→</span> ${outHtml}</div>`;
+      }
+
+      // 2. Fallback if hops array not available
       const outStr = outbound || 'direct';
-      const isOutboundNode = r?.involved_nodes && r.involved_nodes.some(n => n.role === 'OUTBOUND');
-      const outLabel = isOutboundNode ? `${r.involved_nodes.find(n => n.role === 'OUTBOUND').shortName} (${outStr})` : outStr;
-      const outHtml = `<span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-mono ${isOutboundNode ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/25' : 'bg-zinc-800 text-zinc-300'}" title="Outbound Egress">${outLabel}</span>`;
-
-      return `<div class="inline-flex items-center gap-1.5 whitespace-nowrap">${tunnelHtml} <span class="text-zinc-600 text-[10px]">→</span> ${bridgeHtml} <span class="text-zinc-600 text-[10px]">→</span> ${outHtml}</div>`;
+      return `<span class="text-zinc-400 font-mono text-[10px]">${inbound} → ${outStr}</span>`;
     }
 
     function renderInvolvedNodes(r) {
-      if (r.involved_nodes && r.involved_nodes.length > 0) {
+      if (r && Array.isArray(r.hops) && r.hops.length > 0) {
+        const seen = new Set();
+        const uniqueHops = [];
+        for (const h of r.hops) {
+          if (!seen.has(h.shortName)) {
+            seen.add(h.shortName);
+            uniqueHops.push(h);
+          }
+        }
+        return uniqueHops.map(n => {
+          const col = n.role === 'TUNNEL' 
+            ? 'bg-amber-500/15 text-amber-400 border-amber-500/25' 
+            : (n.role === 'BRIDGE' ? 'bg-indigo-500/15 text-indigo-300 border-indigo-500/25' : 'bg-emerald-500/15 text-emerald-400 border-emerald-500/25');
+          return `<span class="px-1.5 py-0.5 rounded text-[10px] font-mono border ${col}" title="${n.nodeName}">${n.shortName}</span>`;
+        }).join('<span class="text-zinc-600 text-[10px] mx-1">→</span>');
+      }
+
+      if (r && r.involved_nodes && r.involved_nodes.length > 0) {
         return r.involved_nodes.map(n => {
           const col = n.role === 'TUNNEL' 
             ? 'bg-amber-500/15 text-amber-400 border-amber-500/25' 
@@ -1266,7 +1291,7 @@
           return `<span class="px-1.5 py-0.5 rounded text-[10px] font-mono border ${col}" title="${n.name}">${n.shortName}</span>`;
         }).join('<span class="text-zinc-600 text-[10px] mx-1">→</span>');
       }
-      return `<span class="text-zinc-400 font-mono text-[10px]">${r.node_path || r.node || 'DE1'}</span>`;
+      return `<span class="text-zinc-400 font-mono text-[10px]">${r?.node_path || r?.node || 'DE1'}</span>`;
     }
 
     // TEHRAN TIMEZONE HELPERS

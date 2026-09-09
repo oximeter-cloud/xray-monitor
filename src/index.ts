@@ -302,11 +302,13 @@ app.get("/api/live-stream", async (c) => {
     );
     return {
       ...item,
+      hops: res.hops,
       is_direct: res.isDirect,
       ingress_node: res.ingressShortName,
-      ingress_type: res.isDirect ? "DIRECT" : "TUNNEL",
+      ingress_type: res.ingressType,
       involved_nodes: res.involved,
-      node_path: res.involved.map((n) => n.shortName).join(" → "),
+      node_path: res.nodePath,
+      detailed_pathway: res.detailedPathway,
     };
   });
 
