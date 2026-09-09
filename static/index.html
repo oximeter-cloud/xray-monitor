@@ -52,32 +52,34 @@
     <!-- Global Controls -->
     <div class="flex items-center flex-wrap gap-2.5">
       <!-- Tehran Time Badge -->
-      <div class="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-zinc-800 bg-zinc-900 text-xs text-zinc-300 font-mono">
+      <div class="hidden sm:flex items-center gap-1.5 px-2.5 h-8 rounded-lg border border-zinc-800 bg-zinc-900 text-xs text-zinc-300 font-mono shrink-0">
         <svg class="w-3.5 h-3.5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
         <span id="tehranClock" class="text-zinc-300">Tehran: --:--:--</span>
       </div>
 
       <!-- Time Range Selector -->
-      <div class="flex rounded-lg bg-zinc-900 p-0.5 border border-zinc-800 text-xs">
-        <button onclick="setTimeRange(1)" class="time-btn px-2.5 py-1 rounded-md text-zinc-400 hover:text-white transition" data-hours="1">1h</button>
-        <button onclick="setTimeRange(6)" class="time-btn px-2.5 py-1 rounded-md text-zinc-400 hover:text-white transition" data-hours="6">6h</button>
-        <button onclick="setTimeRange(24)" class="time-btn px-2.5 py-1 rounded-md bg-zinc-800 text-white font-medium" data-hours="24">24h</button>
-        <button onclick="setTimeRange(168)" class="time-btn px-2.5 py-1 rounded-md text-zinc-400 hover:text-white transition" data-hours="168">7d</button>
+      <div class="flex items-center h-8 rounded-lg bg-zinc-900 p-0.5 border border-zinc-800 text-xs shrink-0">
+        <button onclick="setTimeRange(1)" class="time-btn px-2.5 h-full flex items-center rounded-md text-zinc-400 hover:text-white transition" data-hours="1">1h</button>
+        <button onclick="setTimeRange(6)" class="time-btn px-2.5 h-full flex items-center rounded-md text-zinc-400 hover:text-white transition" data-hours="6">6h</button>
+        <button onclick="setTimeRange(24)" class="time-btn px-2.5 h-full flex items-center rounded-md bg-zinc-800 text-white font-medium" data-hours="24">24h</button>
+        <button onclick="setTimeRange(168)" class="time-btn px-2.5 h-full flex items-center rounded-md text-zinc-400 hover:text-white transition" data-hours="168">7d</button>
       </div>
 
       <!-- User Dropdown Filter -->
-      <select id="userFilter" onchange="onFilterChange()" class="bg-zinc-900 border border-zinc-800 text-xs text-zinc-300 rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-brand-500">
+      <select id="userFilter" onchange="onFilterChange()" class="h-8 bg-zinc-900 border border-zinc-800 text-xs text-zinc-300 rounded-lg px-2.5 focus:outline-none focus:border-brand-500 shrink-0">
         <option value="">All Users</option>
       </select>
 
       <!-- Refresh / Live Button -->
-      <button id="liveToggleBtn" onclick="toggleAutoRefresh()" class="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-emerald-500/40 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20 transition text-xs font-medium shadow-sm shadow-emerald-950/30">
-        <span class="relative flex h-2 w-2">
-          <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-          <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-        </span>
-        <span>Auto-Refresh ON</span>
-        <span class="text-[10px] text-emerald-400/80 font-mono bg-emerald-500/20 px-1.5 py-0.5 rounded">4s</span>
+      <button id="liveToggleBtn" onclick="toggleAutoRefresh()" class="w-44 h-8 flex items-center justify-between px-2.5 rounded-lg border border-emerald-500/40 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20 transition text-xs font-medium shadow-sm shadow-emerald-950/30 shrink-0">
+        <div class="flex items-center gap-2">
+          <span class="relative flex h-2 w-2">
+            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+            <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+          </span>
+          <span>Auto-Refresh</span>
+        </div>
+        <span class="text-[10px] text-emerald-400 font-mono bg-emerald-500/20 px-1.5 py-0.5 rounded border border-emerald-500/30">ON 4s</span>
       </button>
     </div>
   </header>
@@ -695,20 +697,24 @@
       const btn = document.getElementById('liveToggleBtn');
       if (!btn) return;
       if (autoRefresh) {
-        btn.className = "flex items-center gap-2 px-3 py-1.5 rounded-lg border border-emerald-500/40 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20 transition text-xs font-medium shadow-sm shadow-emerald-950/30";
+        btn.className = "w-44 h-8 flex items-center justify-between px-2.5 rounded-lg border border-emerald-500/40 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20 transition text-xs font-medium shadow-sm shadow-emerald-950/30 shrink-0";
         btn.innerHTML = `
-          <span class="relative flex h-2 w-2">
-            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-            <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-          </span>
-          <span>Auto-Refresh ON</span>
-          <span class="text-[10px] text-emerald-400/80 font-mono bg-emerald-500/20 px-1.5 py-0.5 rounded">4s</span>
+          <div class="flex items-center gap-2">
+            <span class="relative flex h-2 w-2">
+              <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+              <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+            </span>
+            <span>Auto-Refresh</span>
+          </div>
+          <span class="text-[10px] text-emerald-400 font-mono bg-emerald-500/20 px-1.5 py-0.5 rounded border border-emerald-500/30">ON 4s</span>
         `;
       } else {
-        btn.className = "flex items-center gap-2 px-3 py-1.5 rounded-lg border border-amber-500/50 bg-amber-950/30 text-amber-300 hover:bg-amber-900/40 transition text-xs font-medium shadow-sm";
+        btn.className = "w-44 h-8 flex items-center justify-between px-2.5 rounded-lg border border-amber-500/50 bg-amber-950/30 text-amber-300 hover:bg-amber-900/40 transition text-xs font-medium shadow-sm shrink-0";
         btn.innerHTML = `
-          <span class="h-2 w-2 rounded-full bg-amber-400 ring-2 ring-amber-500/40"></span>
-          <span>Auto-Refresh PAUSED</span>
+          <div class="flex items-center gap-2">
+            <span class="h-2 w-2 rounded-full bg-amber-400 ring-2 ring-amber-500/40"></span>
+            <span>Auto-Refresh</span>
+          </div>
           <span class="text-[10px] text-amber-300 font-mono bg-amber-500/20 px-1.5 py-0.5 rounded border border-amber-500/30">OFF</span>
         `;
       }
