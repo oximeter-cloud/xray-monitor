@@ -74,6 +74,14 @@ export function initDatabase() {
     DELETE FROM connections WHERE user_id IN (SELECT user_id FROM users WHERE username = 'tunnel' OR username LIKE '%tunnel%');
     DELETE FROM hourly_stats WHERE user_id IN (SELECT user_id FROM users WHERE username = 'tunnel' OR username LIKE '%tunnel%');
     DELETE FROM users WHERE username = 'tunnel' OR username LIKE '%tunnel%';
+
+    -- Clean transit duplicate records where TUNNEL forwarded to BRIDGE
+    DELETE FROM connections WHERE node = 'IR1-Oximeter' AND (outbound LIKE 'bridge-%' OR outbound LIKE '%bridge%');
+    DELETE FROM hourly_stats WHERE node = 'IR1-Oximeter' AND inbound LIKE '%loop%';
+
+    -- Clean legacy test node tags
+    DELETE FROM connections WHERE node IN ('local', 'bridge', 'xray-monitor-node');
+    DELETE FROM hourly_stats WHERE node IN ('local', 'bridge', 'xray-monitor-node');
   `);
 }
 

@@ -339,11 +339,25 @@ export class XrayCollector {
       const userId = parseInt(item.email, 10);
       if (isNaN(userId) || EXCLUDED_USER_IDS.has(userId)) continue;
 
+      const outboundLower = (item.outbound || "").toLowerCase();
+
       // Deduplication:
-      // If report is from BRIDGE and client_ip is from a known TUNNEL,
-      // it is a transit packet forwarded from the tunnel. Skip to avoid double counting!
-      if (role === "BRIDGE") {
-        if (this.tunnelIps.has(item.client_ip)) {
+      // Transit packets: If report is from a TUNNEL node and outbound forwards to a BRIDGE node
+      // (e.g. bridge-*-out or contains "bridge"), skip it! The bridge exit node will record
+      // the complete connection with final destination, actual egress outbound (warp/direct), and resolved multi-hop path.
+      if (
+        role === "TUNNEL" &&
+        (outboundLower.startsWith("bridge-") ||
+          outboundLower.includes("bridge") ||
+          outboundLower === "bridge-out")
+      ) {
+        continue;
+      }
+
+      // If report is from BRIDGE and client_ip is from a known TUNNEL (direct TCP):
+      if (role === "BRIDGE" && item.client_ip) {
+        const cleanClientIp = String(item.client_ip).replace(/^tcp:/, "").split(":")[0];
+        if (cleanClientIp && this.tunnelIps.has(cleanClientIp)) {
           continue;
         }
       }
