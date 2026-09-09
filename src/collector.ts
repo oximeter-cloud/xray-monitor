@@ -16,6 +16,7 @@ import {
   isBridgeRole,
   type RemnaNode,
 } from "./topology";
+import { parseFormattedBytes } from "./utils";
 
 const envExcludedIds = (process.env.EXCLUDED_USER_IDS || "")
   .split(",")
@@ -499,6 +500,7 @@ export class XrayCollector {
 
   public queryXrayLiveStats(): {
     inbound: string;
+    node: string;
     uplink_bytes: number;
     downlink_bytes: number;
     total_bytes: number;
@@ -506,66 +508,70 @@ export class XrayCollector {
     downlink_formatted: string;
     total_formatted: string;
   }[] {
-    try {
-      const pid = execSync("pidof xray 2>/dev/null", { encoding: "utf8" }).trim().split(/\s+/)[0];
-      if (!pid || !/^\d+$/.test(pid)) return [];
-
-      const out = execSync(
-        `nsenter -t ${pid} -n /usr/local/bin/xray api statsquery -s "unix:@xtls-api-a15D2PSZsh" -pattern "inbound"`,
-        { encoding: "utf8", timeout: 2000 }
-      );
-      const data = JSON.parse(out);
-      const raw = data.stat || [];
-      const map = new Map<string, { inbound: string; uplink: number; downlink: number }>();
-
-      for (const item of raw) {
-        const parts = item.name.split(">>>");
-        if (parts.length >= 4 && parts[0] === "inbound" && parts[2] === "traffic") {
-          const tag = parts[1];
-          if (tag === "REMNAWAVE_API_INBOUND") continue;
-          const dir = parts[3];
-          const val = item.value || 0;
-          if (!map.has(tag)) map.set(tag, { inbound: tag, uplink: 0, downlink: 0 });
-          const entry = map.get(tag)!;
-          if (dir === "uplink") entry.uplink = val;
-          if (dir === "downlink") entry.downlink = val;
-        }
-      }
-
-      return Array.from(map.values()).map((e) => ({
-        inbound: e.inbound,
-        uplink_bytes: e.uplink,
-        downlink_bytes: e.downlink,
-        total_bytes: e.uplink + e.downlink,
-        uplink_formatted: formatBytes(e.uplink),
-        downlink_formatted: formatBytes(e.downlink),
-        total_formatted: formatBytes(e.uplink + e.downlink),
-      }));
-    } catch {
-      return [];
+    const list: any[] = [];
+    for (const [key, val] of this.lastInboundStats.entries()) {
+      const parts = key.split("|");
+      const nodeName = parts[0] || "";
+      const tag = parts[1] || key;
+      const tot = val.uplink + val.downlink;
+      list.push({
+        inbound: tag,
+        node: nodeName,
+        uplink_bytes: val.uplink,
+        downlink_bytes: val.downlink,
+        total_bytes: tot,
+        uplink_formatted: formatBytes(val.uplink),
+        downlink_formatted: formatBytes(val.downlink),
+        total_formatted: formatBytes(tot),
+      });
     }
+    return list;
   }
 
   private startTrafficStatsTimer() {
-    // Poll immediately and then every 10 seconds
-    const poll = () => {
+    const apiUrl = process.env.REMNAWAVE_API_URL || "https://panel.oximeter.cc/api";
+    const apiToken = process.env.REMNAWAVE_API_TOKEN;
+
+    const poll = async () => {
+      if (!apiToken) return;
       try {
-        const stats = this.queryXrayLiveStats();
+        const res = await fetch(`${apiUrl}/system/nodes/metrics`, {
+          headers: {
+            Authorization: `Bearer ${apiToken}`,
+            Accept: "application/json",
+          },
+        });
+        if (!res.ok) return;
+        const data = (await res.json()) as any;
+        const nodes = data.response?.nodes || [];
+
         const now = new Date();
         const hourBucket = now.toISOString().slice(0, 13) + ":00:00";
 
-        for (const s of stats) {
-          const prev = this.lastInboundStats.get(s.inbound);
-          if (prev) {
-            const upDelta = s.uplink_bytes >= prev.uplink ? s.uplink_bytes - prev.uplink : s.uplink_bytes;
-            const downDelta = s.downlink_bytes >= prev.downlink ? s.downlink_bytes - prev.downlink : s.downlink_bytes;
-            if (upDelta > 0 || downDelta > 0) {
-              recordInboundTrafficDelta(hourBucket, this.localNodeName, s.inbound, upDelta, downDelta);
+        for (const n of nodes) {
+          const nodeName = n.nodeName || "";
+          for (const ib of n.inboundsStats || []) {
+            const tag = ib.tag;
+            if (!tag || tag === "REMNAWAVE_API_INBOUND") continue;
+            const up = parseFormattedBytes(ib.upload);
+            const down = parseFormattedBytes(ib.download);
+
+            const key = `${nodeName}|${tag}`;
+            const prev = this.lastInboundStats.get(key);
+            if (prev) {
+              const upDelta = up >= prev.uplink ? up - prev.uplink : up;
+              const downDelta = down >= prev.downlink ? down - prev.downlink : down;
+              if (upDelta > 0 || downDelta > 0) {
+                recordInboundTrafficDelta(hourBucket, nodeName, tag, upDelta, downDelta);
+              }
+            } else {
+              // Initial baseline seed so current hour has valid byte volume immediately
+              recordInboundTrafficDelta(hourBucket, nodeName, tag, up, down);
             }
+            this.lastInboundStats.set(key, { uplink: up, downlink: down });
           }
-          this.lastInboundStats.set(s.inbound, { uplink: s.uplink_bytes, downlink: s.downlink_bytes });
         }
-      } catch (err) {
+      } catch {
         // ignore occasional query blips
       }
     };

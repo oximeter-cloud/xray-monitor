@@ -1,3 +1,16 @@
+export function parseFormattedBytes(str: string | null | undefined): number {
+  if (!str || str === "0") return 0;
+  const match = String(str).trim().match(/^([0-9.]+)\s*([A-Za-z]+)?$/);
+  if (!match) return 0;
+  const num = parseFloat(match[1] || "0");
+  const unit = (match[2] || "B").toUpperCase();
+  if (unit.startsWith("T")) return Math.round(num * 1024 * 1024 * 1024 * 1024);
+  if (unit.startsWith("G")) return Math.round(num * 1024 * 1024 * 1024);
+  if (unit.startsWith("M")) return Math.round(num * 1024 * 1024);
+  if (unit.startsWith("K")) return Math.round(num * 1024);
+  return Math.round(num);
+}
+
 /**
  * Timezone & date utilities for Tehran (Asia/Tehran)
  */

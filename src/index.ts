@@ -32,6 +32,7 @@ import {
   isBridgeRole,
   type RemnaNode,
 } from "./topology";
+import { parseFormattedBytes } from "./utils";
 
 const app = new Hono();
 app.use("*", cors());
@@ -143,12 +144,45 @@ app.get("/api/top-inbounds", async (c) => {
 
   // 1. Query recorded inbounds from database for the timeframe
   const rawInbounds = queryTopInbounds(hours, userId, node);
-  const activeInbounds = rawInbounds.filter((ib) => (ib.total_hits || 0) > 0 || (ib.total_bytes || 0) > 0);
 
-  const [nodes, profiles] = await Promise.all([
+  const [nodes, profiles, metricsData] = await Promise.all([
     getRemnawaveNodes(),
     getRemnawaveConfigProfiles(),
+    remnaFetch("/system/nodes/metrics").catch(() => ({ response: { nodes: [] } })),
   ]);
+
+  const liveInboundStatsMap = new Map<string, {
+    upload_bytes: number;
+    download_bytes: number;
+    total_bytes: number;
+    upload_formatted: string;
+    download_formatted: string;
+    total_formatted: string;
+    node_name: string;
+  }>();
+
+  for (const n of metricsData.response?.nodes || []) {
+    const nName = n.nodeName || "";
+    for (const ib of n.inboundsStats || []) {
+      if (!ib.tag || ib.tag === "REMNAWAVE_API_INBOUND") continue;
+      const up = parseFormattedBytes(ib.upload);
+      const down = parseFormattedBytes(ib.download);
+      const tot = up + down;
+      liveInboundStatsMap.set(ib.tag, {
+        upload_bytes: up,
+        download_bytes: down,
+        total_bytes: tot,
+        upload_formatted: ib.upload || formatBytes(up),
+        download_formatted: ib.download || formatBytes(down),
+        total_formatted: formatBytes(tot),
+        node_name: nName,
+      });
+    }
+  }
+
+  const activeInbounds = rawInbounds.filter(
+    (ib) => (ib.total_hits || 0) > 0 || (ib.total_bytes || 0) > 0 || liveInboundStatsMap.has(ib.inbound)
+  );
 
   const tunnelNodes = nodes.filter((n) => n.role === "TUNNEL");
   const bridgeNodes = nodes.filter((n) => n.role === "BRIDGE");
@@ -156,9 +190,11 @@ app.get("/api/top-inbounds", async (c) => {
   // Map of total recorded stats per inbound tag
   const inboundStatsMap = new Map<string, { hits: number; bytes: number; users: number }>();
   for (const ib of activeInbounds) {
+    const live = liveInboundStatsMap.get(ib.inbound);
+    const bytes = (ib.total_bytes && ib.total_bytes > 0) ? ib.total_bytes : (live?.total_bytes || 0);
     inboundStatsMap.set(ib.inbound, {
       hits: ib.total_hits || 0,
-      bytes: ib.total_bytes || 0,
+      bytes,
       users: ib.users_count || 0,
     });
   }
@@ -169,8 +205,15 @@ app.get("/api/top-inbounds", async (c) => {
     const tag = ib.inbound;
     if (tag.includes("API")) continue;
 
-    // Identify owner node from Remnawave config
-    const ownerNode = nodes.find((n) => n.activeInbounds.some((i) => i.tag === tag));
+    const liveStats = liveInboundStatsMap.get(tag);
+    const totalBytes = (ib.total_bytes && ib.total_bytes > 0) ? ib.total_bytes : (liveStats?.total_bytes || 0);
+    const uplinkFormatted = (ib.uplink_bytes && ib.uplink_bytes > 0) ? ib.uplink_formatted : (liveStats?.upload_formatted || "0 B");
+    const downlinkFormatted = (ib.downlink_bytes && ib.downlink_bytes > 0) ? ib.downlink_formatted : (liveStats?.download_formatted || "0 B");
+    const totalFormatted = totalBytes > 0 ? formatBytes(totalBytes) : (liveStats?.total_formatted || "0 B");
+
+    // Identify owner node from Remnawave config or metrics
+    const ownerNode = nodes.find((n) => n.activeInbounds.some((i) => i.tag === tag)) ||
+      nodes.find((n) => n.name === liveStats?.node_name);
     const isBridge = ownerNode ? ownerNode.role === "BRIDGE" : bridgeNodes.some((b) => b.activeInbounds.some((i) => i.tag === tag));
     const isTunnel = ownerNode ? ownerNode.role === "TUNNEL" : tunnelNodes.some((t) => t.activeInbounds.some((i) => i.tag === tag));
 
@@ -200,13 +243,13 @@ app.get("/api/top-inbounds", async (c) => {
       tunneledUsers = Math.max(ib.tunneled_users || 0, tunneledUsersFromFeeders);
 
       directHits = Math.max(0, (ib.total_hits || 0) - tunneledHits);
-      directBytes = Math.max(0, (ib.total_bytes || 0) - tunneledBytes);
+      directBytes = Math.max(0, totalBytes - tunneledBytes);
       directUsers = Math.max(0, (ib.users_count || 0) - tunneledUsers);
     } else {
       // FORMULA for tunnel inbound: just show its traffic (without any calculation)
       tunneledHits = ib.total_hits || 0;
       directHits = 0;
-      tunneledBytes = ib.total_bytes || 0;
+      tunneledBytes = totalBytes;
       directBytes = 0;
       tunneledUsers = ib.users_count || 0;
       directUsers = 0;
@@ -236,19 +279,19 @@ app.get("/api/top-inbounds", async (c) => {
       users_count: ib.users_count,
       direct_users: directUsers,
       tunneled_users: tunneledUsers,
-      total_bytes: ib.total_bytes,
+      total_bytes: totalBytes,
       direct_bytes: directBytes,
       tunneled_bytes: tunneledBytes,
-      total_formatted: ib.total_formatted,
+      total_formatted: totalFormatted,
       direct_formatted: formatBytes(directBytes),
       tunneled_formatted: formatBytes(tunneledBytes),
-      uplink_formatted: ib.uplink_formatted,
-      downlink_formatted: ib.downlink_formatted,
+      uplink_formatted: uplinkFormatted,
+      downlink_formatted: downlinkFormatted,
     });
   }
 
-  // Sort by total_hits descending
-  chains.sort((a, b) => (b.total_hits || 0) - (a.total_hits || 0));
+  // Sort by total_hits descending, then by total_bytes
+  chains.sort((a, b) => (b.total_hits || 0) - (a.total_hits || 0) || (b.total_bytes || 0) - (a.total_bytes || 0));
 
   return c.json({
     chains,
@@ -256,9 +299,32 @@ app.get("/api/top-inbounds", async (c) => {
   });
 });
 
-// Live Inbound Traffic (Instant counters directly from Xray)
-app.get("/api/inbound-traffic", (c) => {
-  return c.json(collector.queryXrayLiveStats());
+app.get("/api/inbound-traffic", async (c) => {
+  try {
+    const metricsData = await remnaFetch("/system/nodes/metrics").catch(() => ({ response: { nodes: [] } }));
+    const list: any[] = [];
+    for (const n of metricsData.response?.nodes || []) {
+      for (const ib of n.inboundsStats || []) {
+        if (!ib.tag || ib.tag === "REMNAWAVE_API_INBOUND") continue;
+        const up = parseFormattedBytes(ib.upload);
+        const down = parseFormattedBytes(ib.download);
+        const tot = up + down;
+        list.push({
+          inbound: ib.tag,
+          node: n.nodeName,
+          uplink_bytes: up,
+          downlink_bytes: down,
+          total_bytes: tot,
+          uplink_formatted: ib.upload || formatBytes(up),
+          downlink_formatted: ib.download || formatBytes(down),
+          total_formatted: formatBytes(tot),
+        });
+      }
+    }
+    return c.json(list);
+  } catch {
+    return c.json(collector.queryXrayLiveStats());
+  }
 });
 
 app.get("/api/timeline", (c) => {
