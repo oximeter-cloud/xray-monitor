@@ -23,7 +23,8 @@ export function initDatabase() {
       user_id INTEGER PRIMARY KEY,
       username TEXT NOT NULL,
       status TEXT DEFAULT 'ACTIVE',
-      last_seen TEXT
+      last_seen TEXT,
+      connected_node TEXT DEFAULT ''
     );
 
     CREATE TABLE IF NOT EXISTS connections (
@@ -79,9 +80,15 @@ export function initDatabase() {
     DELETE FROM connections WHERE node IN ('local', 'bridge', 'xray-monitor-node');
     DELETE FROM hourly_stats WHERE node IN ('local', 'bridge', 'xray-monitor-node');
   `);
+
+  try {
+    db.exec("ALTER TABLE users ADD COLUMN connected_node TEXT DEFAULT '';");
+  } catch {
+    // Column already exists
+  }
 }
 
-// Ensure tables exist before preparing statements
+// Ensure tables exist and schema is migrated before preparing statements
 initDatabase();
 
 export interface ConnectionRecord {
