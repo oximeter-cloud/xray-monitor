@@ -45,12 +45,43 @@ const staticPath = existsSync(join(process.cwd(), "static/index.html"))
   : (existsSync(join(import.meta.dirname || ".", "../static/index.html"))
     ? join(import.meta.dirname || ".", "../static/index.html")
     : "/root/apps/xray-monitor/static/index.html");
+const STATIC_DIR = existsSync(join(process.cwd(), "static"))
+  ? join(process.cwd(), "static")
+  : (existsSync(join(import.meta.dirname || ".", "../static"))
+    ? join(import.meta.dirname || ".", "../static")
+    : "/root/apps/xray-monitor/static");
 const HTML_INDEX = readFileSync(staticPath, "utf8");
 
 // Dashboard UI
 app.get("/", (c) => {
   return c.html(HTML_INDEX);
 });
+
+// PWA Assets & Service Worker
+const pwaStaticAssets = [
+  { path: "/manifest.json", file: "manifest.json", type: "application/manifest+json" },
+  { path: "/sw.js", file: "sw.js", type: "application/javascript" },
+  { path: "/icon.svg", file: "icon.svg", type: "image/svg+xml" },
+  { path: "/icon-192.png", file: "icon-192.png", type: "image/png" },
+  { path: "/icon-512.png", file: "icon-512.png", type: "image/png" },
+  { path: "/apple-touch-icon.png", file: "apple-touch-icon.png", type: "image/png" },
+];
+
+for (const asset of pwaStaticAssets) {
+  const fullPath = join(STATIC_DIR, asset.file);
+  app.get(asset.path, (c) => {
+    if (!existsSync(fullPath)) return c.notFound();
+    const data = readFileSync(fullPath);
+    c.header("Content-Type", asset.type);
+    if (asset.file === "sw.js") {
+      c.header("Service-Worker-Allowed", "/");
+      c.header("Cache-Control", "no-cache, no-store, must-revalidate");
+    } else {
+      c.header("Cache-Control", "public, max-age=86400");
+    }
+    return c.body(data);
+  });
+}
 
 // Cache for Remnawave egress bandwidth calculation
 const egressCache = new Map<string, { bytes: number; formatted: string; exp: number }>();
