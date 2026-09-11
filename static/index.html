@@ -2,7 +2,7 @@
 <html lang="en" class="dark">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, viewport-fit=cover">
   <title>Remnawave Traffic & User Monitor</title>
 
   <!-- PWA Meta & Manifest -->
@@ -33,8 +33,26 @@
     }
   </script>
   <style>
-    body { background-color: #09090b; color: #f4f4f5; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
-    .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
+    :root {
+      --sat: env(safe-area-inset-top, 0px);
+      --sab: env(safe-area-inset-bottom, 0px);
+      --sal: env(safe-area-inset-left, 0px);
+      --sar: env(safe-area-inset-right, 0px);
+    }
+    body {
+      background-color: #09090b;
+      color: #f4f4f5;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      padding-top: var(--sat);
+      padding-bottom: var(--sab);
+      padding-left: var(--sal);
+      padding-right: var(--sar);
+      -webkit-tap-highlight-color: transparent;
+      -webkit-touch-callout: none;
+    }
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    .custom-scrollbar::-webkit-scrollbar { width: 5px; height: 5px; }
     .custom-scrollbar::-webkit-scrollbar-track { background: #18181b; }
     .custom-scrollbar::-webkit-scrollbar-thumb { background: #3f3f46; border-radius: 3px; }
     .badge-google { background: rgba(59, 130, 246, 0.15); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.3); }
@@ -43,140 +61,165 @@
     .badge-apple { background: rgba(161, 161, 170, 0.15); color: #d4d4d8; border: 1px solid rgba(161, 161, 170, 0.3); }
     .badge-twitter { background: rgba(20, 184, 166, 0.15); color: #2dd4bf; border: 1px solid rgba(20, 184, 166, 0.3); }
     .badge-general { background: rgba(113, 113, 122, 0.15); color: #a1a1aa; border: 1px solid rgba(113, 113, 122, 0.3); }
+
+    /* Bottom Sheet slide-up animation for mobile modals */
+    @keyframes modalSlideUp {
+      from { transform: translateY(100%); opacity: 0.85; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+    @media (max-width: 639px) {
+      .modal-sheet {
+        animation: modalSlideUp 0.28s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+      }
+    }
   </style>
 </head>
 <body class="min-h-screen flex flex-col antialiased selection:bg-brand-500 selection:text-white">
 
   <!-- Navigation Bar -->
-  <header class="border-b border-zinc-800 bg-zinc-950/80 backdrop-blur sticky top-0 z-30 px-6 py-3.5 flex flex-wrap items-center justify-between gap-4">
-    <div class="flex items-center gap-3">
-      <div class="h-8 w-8 rounded-lg bg-gradient-to-tr from-brand-600 to-indigo-400 flex items-center justify-center font-bold text-white shadow-lg shadow-brand-500/20">
-        R
-      </div>
-      <div>
-        <h1 class="text-base font-semibold tracking-tight text-white flex items-center gap-2">
-          Remnawave Observability
-          <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">Live</span>
-        </h1>
-        <p class="text-xs text-zinc-400">Real-time user destinations & inbound analytics</p>
-      </div>
-    </div>
+  <header class="border-b border-zinc-800/80 bg-zinc-950/90 backdrop-blur-md sticky top-0 z-30 px-3 sm:px-6 py-2.5 sm:py-3.5 transition-all">
+    <div class="max-w-7xl mx-auto flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+      <!-- Top Row: Logo & Title + Mobile Clock -->
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-2.5 sm:gap-3">
+          <div class="h-8 w-8 sm:h-9 sm:w-9 rounded-xl bg-gradient-to-tr from-brand-600 via-indigo-500 to-cyan-400 flex items-center justify-center font-bold text-white shadow-lg shadow-brand-500/25 shrink-0">
+            <svg class="w-4 h-4 sm:w-5 sm:h-5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+          </div>
+          <div>
+            <div class="flex items-center gap-2">
+              <h1 class="text-sm sm:text-base font-semibold tracking-tight text-white leading-tight">Remnawave Observability</h1>
+              <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] sm:text-xs font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">Live</span>
+            </div>
+            <p class="hidden sm:block text-xs text-zinc-400">Real-time user destinations & inbound analytics</p>
+          </div>
+        </div>
 
-    <!-- Global Controls -->
-    <div class="flex items-center flex-wrap gap-2.5">
-      <!-- Tehran Time Badge -->
-      <div class="hidden sm:flex items-center gap-1.5 px-2.5 h-8 rounded-lg border border-zinc-800 bg-zinc-900 text-xs text-zinc-300 font-mono shrink-0">
-        <svg class="w-3.5 h-3.5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-        <span id="tehranClock" class="text-zinc-300">Tehran: --:--:--</span>
-      </div>
-
-      <!-- Time Range Selector -->
-      <div class="flex items-center h-8 rounded-lg bg-zinc-900 p-0.5 border border-zinc-800 text-xs shrink-0">
-        <button onclick="setTimeRange(1)" class="time-btn px-2.5 h-full flex items-center rounded-md text-zinc-400 hover:text-white transition" data-hours="1">1h</button>
-        <button onclick="setTimeRange(6)" class="time-btn px-2.5 h-full flex items-center rounded-md text-zinc-400 hover:text-white transition" data-hours="6">6h</button>
-        <button onclick="setTimeRange(24)" class="time-btn px-2.5 h-full flex items-center rounded-md bg-zinc-800 text-white font-medium" data-hours="24">24h</button>
-        <button onclick="setTimeRange(168)" class="time-btn px-2.5 h-full flex items-center rounded-md text-zinc-400 hover:text-white transition" data-hours="168">7d</button>
+        <!-- Mobile-only Tehran Clock -->
+        <div class="flex items-center gap-1.5 md:hidden">
+          <div class="flex items-center gap-1 px-2 h-7 rounded-md border border-zinc-800 bg-zinc-900/80 text-[11px] text-zinc-300 font-mono">
+            <svg class="w-3 h-3 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            <span id="tehranClockMobile">--:--</span>
+          </div>
+        </div>
       </div>
 
-      <!-- User Dropdown Filter -->
-      <select id="userFilter" onchange="onFilterChange()" class="h-8 bg-zinc-900 border border-zinc-800 text-xs text-zinc-300 rounded-lg px-2.5 focus:outline-none focus:border-brand-500 shrink-0">
-        <option value="">All Users</option>
-      </select>
+      <!-- Controls Row: Ultra-adaptive on all screens -->
+      <div class="flex items-center justify-between md:justify-end flex-wrap sm:flex-nowrap gap-2 overflow-x-auto no-scrollbar py-0.5">
+        <!-- Tehran Time Badge (Desktop) -->
+        <div class="hidden md:flex items-center gap-1.5 px-2.5 h-8 rounded-lg border border-zinc-800 bg-zinc-900 text-xs text-zinc-300 font-mono shrink-0">
+          <svg class="w-3.5 h-3.5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+          <span id="tehranClock" class="text-zinc-300">Tehran: --:--:--</span>
+        </div>
 
-      <!-- Refresh / Live Button -->
-      <button id="liveToggleBtn" onclick="toggleAutoRefresh()" class="w-44 h-8 flex items-center justify-between px-2.5 rounded-lg border border-emerald-500/40 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20 transition text-xs font-medium shadow-sm shadow-emerald-950/30 shrink-0">
-        <div class="flex items-center gap-2">
-          <span class="relative flex h-2 w-2">
+        <!-- Time Range Selector -->
+        <div class="flex items-center h-8 rounded-lg bg-zinc-900/90 p-0.5 border border-zinc-800 text-xs shrink-0 shadow-inner">
+          <button onclick="setTimeRange(1)" class="time-btn px-2 sm:px-2.5 h-full flex items-center rounded-md text-zinc-400 hover:text-white transition" data-hours="1">1h</button>
+          <button onclick="setTimeRange(6)" class="time-btn px-2 sm:px-2.5 h-full flex items-center rounded-md text-zinc-400 hover:text-white transition" data-hours="6">6h</button>
+          <button onclick="setTimeRange(24)" class="time-btn px-2 sm:px-2.5 h-full flex items-center rounded-md bg-zinc-800 text-white font-medium" data-hours="24">24h</button>
+          <button onclick="setTimeRange(168)" class="time-btn px-2 sm:px-2.5 h-full flex items-center rounded-md text-zinc-400 hover:text-white transition" data-hours="168">7d</button>
+        </div>
+
+        <!-- User Dropdown Filter -->
+        <select id="userFilter" onchange="onFilterChange()" class="h-8 max-w-[125px] sm:max-w-[170px] bg-zinc-900/90 border border-zinc-800 text-xs text-zinc-300 rounded-lg px-2 sm:px-2.5 focus:outline-none focus:border-brand-500 shrink-0 truncate">
+          <option value="">All Users</option>
+        </select>
+
+        <!-- Refresh / Live Button -->
+        <button id="liveToggleBtn" onclick="toggleAutoRefresh()" class="h-8 flex items-center gap-2 px-2 sm:px-2.5 rounded-lg border border-emerald-500/40 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20 transition text-xs font-medium shadow-sm shadow-emerald-950/30 shrink-0">
+          <span class="relative flex h-2 w-2 shrink-0">
             <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
             <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
           </span>
-          <span>Auto-Refresh</span>
-        </div>
-        <span class="text-[10px] text-emerald-400 font-mono bg-emerald-500/20 px-1.5 py-0.5 rounded border border-emerald-500/30">ON 4s</span>
-      </button>
+          <span class="hidden sm:inline">Auto-Refresh</span>
+          <span class="text-[10px] text-emerald-400 font-mono bg-emerald-500/20 px-1.5 py-0.5 rounded border border-emerald-500/30">4s</span>
+        </button>
 
-      <!-- PWA Install Button (Shown dynamically) -->
-      <button id="pwaInstallBtn" onclick="installPwaApp()" class="hidden items-center gap-1.5 px-3 h-8 rounded-lg border border-indigo-500/40 bg-indigo-500/15 text-indigo-300 hover:bg-indigo-500/25 transition text-xs font-medium shadow-sm shadow-indigo-950/30 shrink-0 cursor-pointer">
-        <svg class="w-3.5 h-3.5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
-        <span>Install App</span>
-      </button>
+        <!-- PWA Install Button -->
+        <button id="pwaInstallBtn" onclick="installPwaApp()" class="hidden items-center gap-1.5 px-2.5 sm:px-3 h-8 rounded-lg border border-indigo-500/40 bg-indigo-500/15 text-indigo-300 hover:bg-indigo-500/25 transition text-xs font-medium shadow-sm shadow-indigo-950/30 shrink-0 cursor-pointer">
+          <svg class="w-3.5 h-3.5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+          <span class="hidden sm:inline">Install App</span>
+          <span class="sm:hidden">Install</span>
+        </button>
+      </div>
     </div>
   </header>
 
   <!-- Main Container -->
-  <main class="flex-1 p-6 max-w-7xl w-full mx-auto space-y-6">
+  <main class="flex-1 px-3 sm:px-6 py-4 sm:py-6 max-w-7xl w-full mx-auto space-y-4 sm:space-y-6">
 
-    <!-- KPI Summary Cards -->
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-      <div class="bg-zinc-900/60 border border-zinc-800/80 rounded-xl p-4 flex flex-col justify-between">
-        <div class="flex items-center justify-between text-zinc-400 text-xs font-medium">
-          <span>Total Requests</span>
-          <svg class="w-4 h-4 text-zinc-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+    <!-- KPI Summary Cards: Adaptive Grid (2-col mobile, 3-col tablet, 5-col desktop) -->
+    <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5 sm:gap-4">
+      <div class="bg-zinc-900/60 border border-zinc-800/80 rounded-xl p-3 sm:p-4 flex flex-col justify-between shadow-sm">
+        <div class="flex items-center justify-between text-zinc-400 text-[11px] sm:text-xs font-medium">
+          <span class="truncate">Total Requests</span>
+          <svg class="w-3.5 h-3.5 sm:w-4 sm:h-4 text-zinc-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
         </div>
-        <div class="mt-2 flex items-baseline gap-2">
-          <span id="statTotalRequests" class="text-2xl font-bold text-white tracking-tight">-</span>
-          <span class="text-xs text-zinc-500">conns</span>
+        <div class="mt-2 flex items-baseline gap-1.5">
+          <span id="statTotalRequests" class="text-xl sm:text-2xl font-bold text-white tracking-tight">-</span>
+          <span class="text-[10px] sm:text-xs text-zinc-500">conns</span>
         </div>
       </div>
 
-      <div class="bg-zinc-900/60 border border-zinc-800/80 rounded-xl p-4 flex flex-col justify-between">
-        <div class="flex items-center justify-between text-zinc-400 text-xs font-medium">
-          <span>Egress Transfer (Remnawave)</span>
-          <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10"/></svg>
+      <div class="bg-zinc-900/60 border border-zinc-800/80 rounded-xl p-3 sm:p-4 flex flex-col justify-between shadow-sm">
+        <div class="flex items-center justify-between text-zinc-400 text-[11px] sm:text-xs font-medium">
+          <span class="truncate">Egress Transfer</span>
+          <svg class="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10"/></svg>
         </div>
         <div class="mt-2 flex flex-col">
-          <span id="statTotalTraffic" class="text-2xl font-bold text-emerald-400 tracking-tight">-</span>
-          <span id="statTrafficSub" class="text-[11px] font-mono text-zinc-400 mt-0.5">Remnawave Egress (DE & FI)</span>
+          <span id="statTotalTraffic" class="text-xl sm:text-2xl font-bold text-emerald-400 tracking-tight">-</span>
+          <span id="statTrafficSub" class="text-[10px] font-mono text-zinc-400 mt-0.5 truncate">Remnawave Egress</span>
         </div>
       </div>
 
-      <div class="bg-zinc-900/60 border border-zinc-800/80 rounded-xl p-4 flex flex-col justify-between">
-        <div class="flex items-center justify-between text-zinc-400 text-xs font-medium">
-          <span>Active Users</span>
-          <svg class="w-4 h-4 text-zinc-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+      <div class="bg-zinc-900/60 border border-zinc-800/80 rounded-xl p-3 sm:p-4 flex flex-col justify-between shadow-sm">
+        <div class="flex items-center justify-between text-zinc-400 text-[11px] sm:text-xs font-medium">
+          <span class="truncate">Active Users</span>
+          <svg class="w-3.5 h-3.5 sm:w-4 sm:h-4 text-zinc-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
         </div>
-        <div class="mt-2 flex items-baseline gap-2">
-          <span id="statActiveUsers" class="text-2xl font-bold text-white tracking-tight">-</span>
-          <span class="text-xs text-zinc-500">online in range</span>
-        </div>
-      </div>
-
-      <div class="bg-zinc-900/60 border border-zinc-800/80 rounded-xl p-4 flex flex-col justify-between">
-        <div class="flex items-center justify-between text-zinc-400 text-xs font-medium">
-          <span>Top Visited Destination</span>
-          <svg class="w-4 h-4 text-zinc-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"/></svg>
-        </div>
-        <div class="mt-2 flex items-baseline gap-2">
-          <span id="statTopDomain" class="text-xl font-bold text-indigo-400 truncate tracking-tight">-</span>
-          <span id="statTopDomainHits" class="text-xs text-zinc-500"></span>
+        <div class="mt-2 flex items-baseline gap-1.5">
+          <span id="statActiveUsers" class="text-xl sm:text-2xl font-bold text-white tracking-tight">-</span>
+          <span class="text-[10px] sm:text-xs text-zinc-500">online</span>
         </div>
       </div>
 
-      <div class="bg-zinc-900/60 border border-zinc-800/80 rounded-xl p-4 flex flex-col justify-between">
-        <div class="flex items-center justify-between text-zinc-400 text-xs font-medium">
-          <span>Dominant Inbound</span>
-          <svg class="w-4 h-4 text-zinc-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+      <div class="bg-zinc-900/60 border border-zinc-800/80 rounded-xl p-3 sm:p-4 flex flex-col justify-between shadow-sm">
+        <div class="flex items-center justify-between text-zinc-400 text-[11px] sm:text-xs font-medium">
+          <span class="truncate">Top Destination</span>
+          <svg class="w-3.5 h-3.5 sm:w-4 sm:h-4 text-zinc-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"/></svg>
         </div>
-        <div class="mt-2 flex items-baseline gap-2">
-          <span id="statTopInbound" class="text-xl font-bold text-emerald-400 truncate tracking-tight">-</span>
-          <span id="statTopInboundHits" class="text-xs text-zinc-500"></span>
+        <div class="mt-2 flex items-baseline gap-1.5">
+          <span id="statTopDomain" class="text-base sm:text-xl font-bold text-indigo-400 truncate tracking-tight">-</span>
+          <span id="statTopDomainHits" class="text-[10px] text-zinc-500 truncate"></span>
+        </div>
+      </div>
+
+      <div class="bg-zinc-900/60 border border-zinc-800/80 rounded-xl p-3 sm:p-4 flex flex-col justify-between shadow-sm col-span-2 sm:col-span-1">
+        <div class="flex items-center justify-between text-zinc-400 text-[11px] sm:text-xs font-medium">
+          <span class="truncate">Dominant Inbound</span>
+          <svg class="w-3.5 h-3.5 sm:w-4 sm:h-4 text-zinc-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+        </div>
+        <div class="mt-2 flex items-baseline gap-1.5">
+          <span id="statTopInbound" class="text-base sm:text-xl font-bold text-emerald-400 truncate tracking-tight">-</span>
+          <span id="statTopInboundHits" class="text-[10px] text-zinc-500 truncate"></span>
         </div>
       </div>
     </div>
 
-    <!-- Navigation Tabs -->
-    <div class="flex border-b border-zinc-800 gap-6 text-sm overflow-x-auto custom-scrollbar whitespace-nowrap">
-      <button onclick="switchTab('destinations')" id="tab-destinations" class="tab-btn pb-3 text-white border-b-2 border-brand-500 font-medium">Traffic Overview</button>
-      <button onclick="switchTab('users')" id="tab-users" class="tab-btn pb-3 text-zinc-400 hover:text-zinc-200 border-b-2 border-transparent transition">User Activity</button>
-      <button onclick="switchTab('live')" id="tab-live" class="tab-btn pb-3 text-zinc-400 hover:text-zinc-200 border-b-2 border-transparent transition flex items-center gap-2">
-        Live Stream
-        <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
-      </button>
-      <button onclick="switchTab('inbounds')" id="tab-inbounds" class="tab-btn pb-3 text-zinc-400 hover:text-zinc-200 border-b-2 border-transparent transition">Inbound Gateways</button>
-      <button onclick="switchTab('sessions')" id="tab-sessions" class="tab-btn pb-3 text-zinc-400 hover:text-zinc-200 border-b-2 border-transparent transition">Nodes & Topology</button>
-      <button onclick="switchTab('bandwidth')" id="tab-bandwidth" class="tab-btn pb-3 text-zinc-400 hover:text-zinc-200 border-b-2 border-transparent transition">Bandwidth & Trends</button>
-      <button onclick="switchTab('hwid')" id="tab-hwid" class="tab-btn pb-3 text-zinc-400 hover:text-zinc-200 border-b-2 border-transparent transition">HWID Devices</button>
-      <button onclick="switchTab('srh')" id="tab-srh" class="tab-btn pb-3 text-zinc-400 hover:text-zinc-200 border-b-2 border-transparent transition">Subscription History</button>
+    <!-- Navigation Tabs: Touch-Friendly Scrollable Strip -->
+    <div class="relative -mx-3 sm:mx-0 px-3 sm:px-0">
+      <div class="flex border-b border-zinc-800 gap-4 sm:gap-6 text-xs sm:text-sm overflow-x-auto no-scrollbar whitespace-nowrap scroll-smooth pb-0.5">
+        <button onclick="switchTab('destinations')" id="tab-destinations" class="tab-btn pb-3 text-white border-b-2 border-brand-500 font-medium shrink-0">Traffic Overview</button>
+        <button onclick="switchTab('users')" id="tab-users" class="tab-btn pb-3 text-zinc-400 hover:text-zinc-200 border-b-2 border-transparent transition shrink-0">User Activity</button>
+        <button onclick="switchTab('live')" id="tab-live" class="tab-btn pb-3 text-zinc-400 hover:text-zinc-200 border-b-2 border-transparent transition flex items-center gap-2 shrink-0">
+          Live Stream
+          <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+        </button>
+        <button onclick="switchTab('inbounds')" id="tab-inbounds" class="tab-btn pb-3 text-zinc-400 hover:text-zinc-200 border-b-2 border-transparent transition shrink-0">Inbound Gateways</button>
+        <button onclick="switchTab('sessions')" id="tab-sessions" class="tab-btn pb-3 text-zinc-400 hover:text-zinc-200 border-b-2 border-transparent transition shrink-0">Nodes & Topology</button>
+        <button onclick="switchTab('bandwidth')" id="tab-bandwidth" class="tab-btn pb-3 text-zinc-400 hover:text-zinc-200 border-b-2 border-transparent transition shrink-0">Bandwidth & Trends</button>
+        <button onclick="switchTab('hwid')" id="tab-hwid" class="tab-btn pb-3 text-zinc-400 hover:text-zinc-200 border-b-2 border-transparent transition shrink-0">HWID Devices</button>
+        <button onclick="switchTab('srh')" id="tab-srh" class="tab-btn pb-3 text-zinc-400 hover:text-zinc-200 border-b-2 border-transparent transition shrink-0">Subscription History</button>
+      </div>
     </div>
 
     <!-- TAB 1: DESTINATIONS & CHARTS -->
@@ -209,10 +252,10 @@
       </div>
 
       <!-- Top Domains Data Table -->
-      <div class="bg-zinc-900/60 border border-zinc-800/80 rounded-xl overflow-hidden">
-        <div class="p-4 border-b border-zinc-800/80 flex flex-wrap items-center justify-between gap-4">
-          <h3 class="text-sm font-semibold text-zinc-200">Destinations Breakdown</h3>
-          <div class="relative w-64">
+      <div class="bg-zinc-900/60 border border-zinc-800/80 rounded-xl overflow-hidden shadow-sm">
+        <div class="p-3.5 sm:p-4 border-b border-zinc-800/80 flex flex-wrap items-center justify-between gap-3">
+          <h3 class="text-xs sm:text-sm font-semibold text-zinc-200">Destinations Breakdown</h3>
+          <div class="relative w-full sm:w-64">
             <input type="text" id="domainSearch" oninput="debounceLoadDomains()" placeholder="Search domain or category..." class="w-full bg-zinc-950 border border-zinc-800 text-xs rounded-lg px-3 py-1.5 text-zinc-200 focus:outline-none focus:border-brand-500">
           </div>
         </div>
@@ -238,13 +281,13 @@
 
     <!-- TAB 2: USERS MATRIX -->
     <div id="content-users" class="tab-content hidden space-y-4">
-      <div class="bg-zinc-900/60 border border-zinc-800/80 rounded-xl overflow-hidden">
-        <div class="p-4 border-b border-zinc-800/80 flex flex-wrap items-center justify-between gap-4">
+      <div class="bg-zinc-900/60 border border-zinc-800/80 rounded-xl overflow-hidden shadow-sm">
+        <div class="p-3.5 sm:p-4 border-b border-zinc-800/80 flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h3 class="text-sm font-semibold text-zinc-200">Registered Remnawave Users</h3>
-            <p class="text-xs text-zinc-500">Click any user to inspect their visited websites and inbounds</p>
+            <h3 class="text-xs sm:text-sm font-semibold text-zinc-200">Registered Remnawave Users</h3>
+            <p class="text-[11px] sm:text-xs text-zinc-500">Click any user to inspect their visited websites and inbounds</p>
           </div>
-          <div class="w-64">
+          <div class="w-full sm:w-64">
             <input type="text" id="userSearchInput" oninput="debounceLoadUsers()" placeholder="Search username or ID..." class="w-full bg-zinc-950 border border-zinc-800 text-xs rounded-lg px-3 py-1.5 text-zinc-200 focus:outline-none focus:border-brand-500">
           </div>
         </div>
@@ -302,13 +345,13 @@
 
     <!-- TAB 3: LIVE STREAM -->
     <div id="content-live" class="tab-content hidden space-y-4">
-      <div class="bg-zinc-900/60 border border-zinc-800/80 rounded-xl overflow-hidden">
-        <div class="p-4 border-b border-zinc-800/80 flex items-center justify-between">
+      <div class="bg-zinc-900/60 border border-zinc-800/80 rounded-xl overflow-hidden shadow-sm">
+        <div class="p-3.5 sm:p-4 border-b border-zinc-800/80 flex flex-wrap items-center justify-between gap-3">
           <div class="flex items-center gap-2">
-            <h3 class="text-sm font-semibold text-zinc-200">Real-Time Connection Stream</h3>
-            <span class="text-xs text-zinc-500">(Auto-tails Xray core logs)</span>
+            <h3 class="text-xs sm:text-sm font-semibold text-zinc-200">Real-Time Connection Stream</h3>
+            <span class="text-[11px] sm:text-xs text-zinc-500">(Auto-tails Xray logs)</span>
           </div>
-          <div class="w-64">
+          <div class="w-full sm:w-64">
             <input type="text" id="liveSearchInput" oninput="loadLiveStream()" placeholder="Filter stream (dest, ip, user)..." class="w-full bg-zinc-950 border border-zinc-800 text-xs rounded-lg px-3 py-1.5 text-zinc-200 focus:outline-none focus:border-brand-500">
           </div>
         </div>
@@ -396,13 +439,13 @@
       </div>
 
       <!-- HWID Devices Table -->
-      <div class="bg-zinc-900/60 border border-zinc-800/80 rounded-xl overflow-hidden">
-        <div class="p-4 border-b border-zinc-800/80 flex flex-wrap items-center justify-between gap-4">
+      <div class="bg-zinc-900/60 border border-zinc-800/80 rounded-xl overflow-hidden shadow-sm">
+        <div class="p-3.5 sm:p-4 border-b border-zinc-800/80 flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h3 class="text-sm font-semibold text-zinc-200">Device Fingerprint Registry</h3>
-            <p class="text-xs text-zinc-500">Hardware IDs and client client profiles bound to Remnawave users</p>
+            <h3 class="text-xs sm:text-sm font-semibold text-zinc-200">Device Fingerprint Registry</h3>
+            <p class="text-[11px] sm:text-xs text-zinc-500">Hardware IDs and client profiles bound to Remnawave users</p>
           </div>
-          <input type="text" id="hwidSearch" placeholder="Search user, platform, app..." oninput="filterHwidTable()" class="bg-zinc-950 border border-zinc-800 text-xs text-zinc-300 rounded-lg px-3 py-1.5 w-64 focus:outline-none focus:border-brand-500">
+          <input type="text" id="hwidSearch" placeholder="Search user, platform, app..." oninput="filterHwidTable()" class="bg-zinc-950 border border-zinc-800 text-xs text-zinc-300 rounded-lg px-3 py-1.5 w-full sm:w-64 focus:outline-none focus:border-brand-500">
         </div>
         <div class="overflow-x-auto custom-scrollbar max-h-[600px]">
           <table class="w-full text-left text-xs text-zinc-300">
@@ -445,13 +488,13 @@
       </div>
 
       <!-- SRH Table -->
-      <div class="bg-zinc-900/60 border border-zinc-800/80 rounded-xl overflow-hidden">
-        <div class="p-4 border-b border-zinc-800/80 flex flex-wrap items-center justify-between gap-4">
+      <div class="bg-zinc-900/60 border border-zinc-800/80 rounded-xl overflow-hidden shadow-sm">
+        <div class="p-3.5 sm:p-4 border-b border-zinc-800/80 flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h3 class="text-sm font-semibold text-zinc-200">Subscription Request Stream</h3>
-            <p class="text-xs text-zinc-500">Live subscription link pulls with client IP, app headers, and rule matching</p>
+            <h3 class="text-xs sm:text-sm font-semibold text-zinc-200">Subscription Request Stream</h3>
+            <p class="text-[11px] sm:text-xs text-zinc-500">Live subscription link pulls with client IP, app headers, and rule matching</p>
           </div>
-          <input type="text" id="srhSearch" placeholder="Search user, IP, app..." oninput="filterSrhTable()" class="bg-zinc-950 border border-zinc-800 text-xs text-zinc-300 rounded-lg px-3 py-1.5 w-64 focus:outline-none focus:border-brand-500">
+          <input type="text" id="srhSearch" placeholder="Search user, IP, app..." oninput="filterSrhTable()" class="bg-zinc-950 border border-zinc-800 text-xs text-zinc-300 rounded-lg px-3 py-1.5 w-full sm:w-64 focus:outline-none focus:border-brand-500">
         </div>
         <div class="overflow-x-auto custom-scrollbar max-h-[600px]">
           <table class="w-full text-left text-xs text-zinc-300">
@@ -550,17 +593,19 @@
     </div>
   </main>
 
-  <!-- MODAL: USER DRILLDOWN -->
-  <div id="userModal" class="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm hidden flex items-center justify-center p-2 sm:p-4">
-    <div class="bg-zinc-900 border border-zinc-800 rounded-xl max-w-4xl w-full max-h-[90vh] flex flex-col overflow-hidden shadow-2xl">
-      <div class="p-5 border-b border-zinc-800 flex items-center justify-between">
-        <div>
-          <h3 id="modalUserName" class="text-base font-semibold text-white flex items-center gap-2"></h3>
-          <p id="modalUserSub" class="text-xs text-zinc-400 mt-0.5"></p>
+  <!-- MODAL: USER DRILLDOWN (Bottom Sheet on mobile, centered modal on desktop) -->
+  <div id="userModal" class="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm hidden flex items-end sm:items-center justify-center p-0 sm:p-4 transition-all">
+    <div class="bg-zinc-900 border-t sm:border border-zinc-800 rounded-t-2xl sm:rounded-xl max-w-4xl w-full max-h-[92vh] sm:max-h-[90vh] flex flex-col overflow-hidden shadow-2xl modal-sheet">
+      <!-- Mobile Pull Grab Indicator -->
+      <div class="w-12 h-1.5 bg-zinc-700/80 rounded-full mx-auto mt-2.5 mb-1 sm:hidden"></div>
+      <div class="px-4 py-3 sm:p-5 border-b border-zinc-800 flex items-center justify-between">
+        <div class="truncate pr-2">
+          <h3 id="modalUserName" class="text-sm sm:text-base font-semibold text-white flex items-center gap-2 truncate"></h3>
+          <p id="modalUserSub" class="text-[11px] sm:text-xs text-zinc-400 mt-0.5 truncate"></p>
         </div>
-        <button onclick="closeModal('userModal')" class="text-zinc-400 hover:text-white p-1.5 rounded-lg hover:bg-zinc-800 text-lg transition">✕</button>
+        <button onclick="closeModal('userModal')" class="text-zinc-400 hover:text-white p-1.5 rounded-lg hover:bg-zinc-800 text-base sm:text-lg transition shrink-0">✕</button>
       </div>
-      <div class="p-5 overflow-y-auto custom-scrollbar space-y-6">
+      <div class="p-4 sm:p-5 overflow-y-auto custom-scrollbar space-y-5 sm:space-y-6">
         <!-- User Hardware Devices (HWID) -->
         <div>
           <h4 class="text-xs font-semibold uppercase text-zinc-400 mb-2 tracking-wider flex items-center justify-between">
@@ -629,17 +674,19 @@
     </div>
   </div>
 
-  <!-- MODAL: DOMAIN DRILLDOWN -->
-  <div id="domainModal" class="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm hidden flex items-center justify-center p-4">
-    <div class="bg-zinc-900 border border-zinc-800 rounded-xl max-w-2xl w-full max-h-[85vh] flex flex-col overflow-hidden shadow-2xl">
-      <div class="p-5 border-b border-zinc-800 flex items-center justify-between">
-        <div>
-          <h3 id="modalDomainName" class="text-base font-semibold text-white"></h3>
-          <p class="text-xs text-zinc-400 mt-0.5">Which users visited this destination</p>
+  <!-- MODAL: DOMAIN DRILLDOWN (Bottom Sheet on mobile, centered modal on desktop) -->
+  <div id="domainModal" class="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm hidden flex items-end sm:items-center justify-center p-0 sm:p-4 transition-all">
+    <div class="bg-zinc-900 border-t sm:border border-zinc-800 rounded-t-2xl sm:rounded-xl max-w-2xl w-full max-h-[92vh] sm:max-h-[85vh] flex flex-col overflow-hidden shadow-2xl modal-sheet">
+      <!-- Mobile Pull Grab Indicator -->
+      <div class="w-12 h-1.5 bg-zinc-700/80 rounded-full mx-auto mt-2.5 mb-1 sm:hidden"></div>
+      <div class="px-4 py-3 sm:p-5 border-b border-zinc-800 flex items-center justify-between">
+        <div class="truncate pr-2">
+          <h3 id="modalDomainName" class="text-sm sm:text-base font-semibold text-white truncate"></h3>
+          <p class="text-[11px] sm:text-xs text-zinc-400 mt-0.5 truncate">Which users visited this destination</p>
         </div>
-        <button onclick="closeModal('domainModal')" class="text-zinc-400 hover:text-white p-1 rounded-lg hover:bg-zinc-800 text-lg">✕</button>
+        <button onclick="closeModal('domainModal')" class="text-zinc-400 hover:text-white p-1 rounded-lg hover:bg-zinc-800 text-base sm:text-lg transition shrink-0">✕</button>
       </div>
-      <div class="p-5 overflow-y-auto custom-scrollbar space-y-4">
+      <div class="p-4 sm:p-5 overflow-y-auto custom-scrollbar">
         <div class="border border-zinc-800 rounded-lg overflow-hidden">
           <table class="w-full text-left text-xs text-zinc-300">
             <thead class="bg-zinc-950/60 text-zinc-400 uppercase">
@@ -684,12 +731,13 @@
     function switchTab(tabId) {
       document.querySelectorAll('.tab-content').forEach(c => c.classList.add('hidden'));
       document.querySelectorAll('.tab-btn').forEach(b => {
-        b.className = "tab-btn pb-3 text-zinc-400 hover:text-zinc-200 border-b-2 border-transparent transition";
+        b.className = "tab-btn pb-3 text-zinc-400 hover:text-zinc-200 border-b-2 border-transparent transition shrink-0";
       });
       document.getElementById('content-' + tabId).classList.remove('hidden');
       const activeBtn = document.getElementById('tab-' + tabId);
       if (activeBtn) {
-        activeBtn.className = "tab-btn pb-3 text-white border-b-2 border-brand-500 font-medium";
+        activeBtn.className = "tab-btn pb-3 text-white border-b-2 border-brand-500 font-medium shrink-0";
+        activeBtn.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
       }
 
       if (tabId === 'destinations') loadDestinations();
@@ -1514,6 +1562,8 @@
         }).format(now);
         const clockEl = document.getElementById('tehranClock');
         if (clockEl) clockEl.innerText = `Tehran: ${timeStr}`;
+        const clockMobile = document.getElementById('tehranClockMobile');
+        if (clockMobile) clockMobile.innerText = timeStr.slice(0, 5);
       }
       update();
       setInterval(update, 1000);
